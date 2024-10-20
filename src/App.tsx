@@ -5,23 +5,21 @@ import "./App.css";
 
 import * as Comlink from "comlink";
 import { exposed, sendExposed } from "./extension/comlink-helper";
-import { ExtensionService, ExtensionServiceR } from "./extension/extension-service";
+import { ExtensionService, ExtensionServiceEndpointLeft } from "./extension/extension-service";
 
 function App() {
   const [greetMsg, setGreetMsg] = useState("");
   const [name, setName] = useState("");
 
   const extensionService = new ExtensionService();
-  const extensionServiceR = new ExtensionServiceR(extensionService);
-
-  //TODO: make this into a function of ExtensionService
-  const worker = new Worker(new URL("./extension/extension-host", import.meta.url), { type: "module" });
-  Comlink.expose(extensionServiceR, worker);
-  sendExposed(worker);
+  const extensionServiceL = new ExtensionServiceEndpointLeft(extensionService);
+  const extensionHostIdentifier: number = extensionServiceL.loadExtensionHost();
+  console.log(extensionHostIdentifier);
 
 
   return (
     <main className="container">
+      <div id="extension"></div>
       <h1>Welcome to Tauri + React</h1>
 
       <div className="row">

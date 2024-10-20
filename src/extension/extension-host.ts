@@ -14,8 +14,7 @@ type extensionWorkerControllerIdentifier = number;
 // }
 
 interface IEndpointLeft {
-  //TODO: Should I return the controllerIdentifier or should i return EndpointRightIdentifier?
-  loadExtension(extensionIdentifier: string): [extensionWorkerControllerIdentifier, endpointRightIdentifier];//Add more ways of loading an Extension for example from an Server.
+  loadExtension(extensionIdentifier: string): endpointRightIdentifier;//Add more ways of loading an Extension for example from an Server.
   unloadExtension(endpointIdentifier: endpointRightIdentifier): boolean;
 }
 
@@ -29,7 +28,7 @@ class ExtensionHostEndpointLeft implements IEndpointLeft {
   constructor(extensionHost: ExtensionHost) {
     this.#extensionHost = extensionHost;
   }
-  loadExtension(extensionIdentifier: string): [extensionWorkerControllerIdentifier, endpointRightIdentifier] {
+  loadExtension(extensionIdentifier: string): endpointRightIdentifier {
     return this.#extensionHost.loadExtension(extensionIdentifier);
   }
   unloadExtension(endpointIdentifier: endpointRightIdentifier): boolean {
@@ -80,12 +79,12 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
     this.#extensionWorkerControllers = new Map<extensionWorkerControllerIdentifier, ExtensionWorkerController>;
   }
 
-  loadExtension(extensionIdentifier: string): [extensionWorkerControllerIdentifier, endpointRightIdentifier] {
+  loadExtension(extensionIdentifier: string): endpointRightIdentifier {
 
     //TODO: Before creating the extension check if it exists and what not. The relevant information is safed inside of the Controller.
 
-
-    const worker = new Worker("./extension-worker.ts");
+    //This might fails because of the path just so you know Amer
+    const worker = new Worker(new URL("./extension-worker", import.meta.url), { type: "module" });
 
     const controller = new ExtensionWorkerController(worker);
     const endpoint = new ExtensionHostEndpointRight(this as ExtensionHost, controller.identifier);
@@ -95,10 +94,10 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
 
     Comlink.expose(endpoint, worker);
 
-    return [controller.identifier, endpoint.identifier];
+    return endpoint.identifier;
   }
 
-  loadManifest(path: URL) {
+  loadManifest(path: URL): void {
 
   }
 
