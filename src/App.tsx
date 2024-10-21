@@ -4,18 +4,15 @@ import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
 import * as Comlink from "comlink";
-import { exposed, sendExposed } from "./extension/comlink-helper";
-import { ExtensionService, ExtensionServiceEndpointLeft } from "./extension/extension-service";
+import { ExtensionService, EndpointLeft } from "./extension/extension-service";
 
 function App() {
   const [greetMsg, setGreetMsg] = useState("");
   const [name, setName] = useState("");
 
   const extensionService = new ExtensionService();
-  const extensionServiceL = new ExtensionServiceEndpointLeft(extensionService);
-  const extensionHostIdentifier: number = extensionServiceL.loadExtensionHost();
-  console.log(extensionHostIdentifier);
-
+  const extensionServiceL = extensionService.endpointLeft;
+  extensionServiceL.loadExtensionHost().then((data) => console.log(data));
 
   return (
     <main className="container">

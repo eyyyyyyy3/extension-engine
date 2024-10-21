@@ -1,6 +1,8 @@
 import * as Comlink from "comlink";
-import { sendExposed } from "./comlink-helper";
-type eventControllerIdentifier = number;
+import { sendExposed, awaitExposed } from "./comlink-helper";
+import * as ExtensionHost from "./extension-host";
+
+export type eventControllerIdentifier = number;
 class EventController {
   static #currentIdentifier: eventControllerIdentifier = 0;
   identifier: eventControllerIdentifier;
@@ -13,7 +15,7 @@ class EventController {
   }
 }
 
-type iFrameControllerIdentifier = string;
+export type iFrameControllerIdentifier = string;
 class IFrameController {
   static #currentIdentifier: number = 0;
   eventControllers: Map<number, EventController>;
@@ -27,27 +29,48 @@ class IFrameController {
   }
 }
 
+//The ExtensionHostController hold all the relevant information of an extension-host.
+//It has references to the actual web worker and all the IFrames that were opened via
+//that extension-host and the actual endpoint of the extension-host. The controllers
+//are used by both the left and the right ExtensionServiceEndpoints.
+export type extensionHostControllerIdentifier = number;
 class ExtensionHostController {
   static #currentIdentifier: extensionHostControllerIdentifier = 0;
   identifier: extensionHostControllerIdentifier;
   iFrameControllers: Map<string, IFrameController>;
   worker: Worker | null;
+  //I should use interfaces rather that the class instance 
+  //for flexibility purposes but doing that would break
+  //the way I expose the right endpoints. There is a 
+  //"never trust whats coming from the right" principle
+  //where we manage the state from any right endpoint. Because
+  //of that state management exposing the interface would make
+  //for some ugly optional function parameters that we hide with 
+  //the class. Any input would be ignored anyways but still.
+  extensionHostEndpoint: Comlink.Remote<ExtensionHost.EndpointLeft> | null;
+  #endpointRightIdentifier: endpointRightIdentifier | undefined;
 
-  constructor(worker: Worker) {
+  constructor(worker: Worker, extensionHostEndpoint: Comlink.Remote<ExtensionHost.EndpointLeft>) {
     this.identifier = ExtensionHostController.#currentIdentifier;
     this.iFrameControllers = new Map<string, IFrameController>;
     ExtensionHostController.#currentIdentifier += 1;
     this.worker = worker;
+    this.extensionHostEndpoint = extensionHostEndpoint;
+  }
+
+  get endpointRightIdentifier(): endpointRightIdentifier | undefined {
+    return this.#endpointRightIdentifier;
+  }
+
+  set endpointRightIdentifier(endpointRightIdentifier: endpointRightIdentifier) {
+    if (this.#endpointRightIdentifier !== undefined) return;
+    this.#endpointRightIdentifier = endpointRightIdentifier;
   }
 }
 
-type endpointRightIdentifier = number;
-type endpointLeftIdentifier = number;
-type extensionHostControllerIdentifier = number;
-
 interface IEndpointLeft {
-  loadExtensionHost(): endpointRightIdentifier;
-  unloadExtensionHost(endpointIdentifier: endpointRightIdentifier): boolean;
+  loadExtensionHost(): Promise<extensionHostControllerIdentifier>;
+  unloadExtensionHost(extensionHostControllerIdentifier: extensionHostControllerIdentifier): boolean;
   status(): void;
 }
 
@@ -56,46 +79,58 @@ interface IEndpointRight {
   removeIFrame(iFrameIdentifier: string, endpointRightIdentifier?: endpointRightIdentifier): boolean;
   removeIFrames(endpointRightIdentifier?: endpointRightIdentifier): boolean;
   addEventListener(iFrameIdentifier: string, listener: (data: any) => any, endpointRightIdentifier?: endpointRightIdentifier): number | undefined;
-  removeEventListener(iFrameIdentifier: string, controllerIdentifier: number, endpointRightIdentifier?: endpointRightIdentifier): boolean;
+  removeEventListener(iFrameIdentifier: string, eventControllerIdentifier: eventControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean;
   postMessage(iFrameIdentifier: string, data: any, endpointRightIdentifier?: endpointRightIdentifier): boolean;
 }
 
+export type endpointRightIdentifier = number;
 
-export class ExtensionServiceEndpointLeft implements IEndpointLeft {
+export class EndpointLeft implements IEndpointLeft {
+  //TODO: Make this a singleton
+
+  //Cause there should only be one single instance of an EndpointLeft,
+  //there is no need for any identifier.
   #extensionService: ExtensionService;
   constructor(extensionService: ExtensionService) {
     this.#extensionService = extensionService;
   }
-  loadExtensionHost(): endpointRightIdentifier {
+
+  async loadExtensionHost(): Promise<extensionHostControllerIdentifier> {
     return this.#extensionService.loadExtensionHost();
   }
-  unloadExtensionHost(endpointIdentifier: endpointRightIdentifier): boolean {
-    return this.#extensionService.unloadExtensionHost(endpointIdentifier);
+
+  unloadExtensionHost(extensionHostControllerIdentifier: extensionHostControllerIdentifier): boolean {
+    return this.#extensionService.unloadExtensionHost(extensionHostControllerIdentifier);
   }
   status(): void {
     this.#extensionService.status();
   }
+
 }
 
-
-export class ExtensionServiceEndpointRight implements IEndpointRight {
+export class EndpointRight implements IEndpointRight {
   static #currentIdentifier: endpointRightIdentifier = 0;
   #identifier: endpointRightIdentifier;
   #extensionService: ExtensionService;
-  #extensionHostControllerIdentifier: extensionHostControllerIdentifier;
-  constructor(extensionService: ExtensionService, extensionHostControllerIdentifier: extensionHostControllerIdentifier) {
-    this.#identifier = ExtensionServiceEndpointRight.#currentIdentifier;
-    ExtensionServiceEndpointRight.#currentIdentifier += 1;
+  #extensionHostControllerIdentifier: extensionHostControllerIdentifier | undefined;
+
+  constructor(extensionService: ExtensionService) {
+    this.#identifier = EndpointRight.#currentIdentifier;
+    EndpointRight.#currentIdentifier += 1;
     this.#extensionService = extensionService;
-    this.#extensionHostControllerIdentifier = extensionHostControllerIdentifier;
   }
 
   get identifier() {
     return this.#identifier;
   }
 
-  get extensionHostControllerIdentifier() {
+  get extensionHostControllerIdentifier(): extensionHostControllerIdentifier | undefined {
     return this.#extensionHostControllerIdentifier;
+  }
+
+  set extensionHostControllerIdentifier(extensionHostControllerIdentifier: extensionHostControllerIdentifier) {
+    if (this.#extensionHostControllerIdentifier !== undefined) return;
+    this.#extensionHostControllerIdentifier = extensionHostControllerIdentifier;
   }
 
   createIFrame(html: string): string | null {
@@ -114,8 +149,8 @@ export class ExtensionServiceEndpointRight implements IEndpointRight {
     return this.#extensionService.addEventListener(iFrameIdentifier, listener, this.#identifier);
   }
 
-  removeEventListener(iFrameIdentifier: string, controllerIdentifier: number): boolean {
-    return this.#extensionService.removeEventListener(iFrameIdentifier, controllerIdentifier, this.#identifier);
+  removeEventListener(iFrameIdentifier: string, eventControllerIdentifier: eventControllerIdentifier): boolean {
+    return this.#extensionService.removeEventListener(iFrameIdentifier, eventControllerIdentifier, this.#identifier);
   }
 
   postMessage(iFrameIdentifier: string, data: any): boolean {
@@ -126,21 +161,26 @@ export class ExtensionServiceEndpointRight implements IEndpointRight {
 export class ExtensionService implements IEndpointLeft, IEndpointRight {
   #app = document.getElementById("extension"); //TODO: change this later 
 
-  // A map from iFrameIdentifier to a map of controllerIdentifier to EventController
-  #extensionHostEndpoints: Map<endpointRightIdentifier, ExtensionServiceEndpointRight>;
+  #exposedExtensionServiceEndpoints: Map<endpointRightIdentifier, EndpointRight>;
   #extensionHostControllers: Map<extensionHostControllerIdentifier, ExtensionHostController>;
+  #endpointLeft: EndpointLeft;
 
   constructor() {
-    this.#extensionHostEndpoints = new Map<endpointRightIdentifier, ExtensionServiceEndpointRight>();
+    this.#exposedExtensionServiceEndpoints = new Map<endpointRightIdentifier, EndpointRight>();
     this.#extensionHostControllers = new Map<extensionHostControllerIdentifier, ExtensionHostController>();
+    this.#endpointLeft = new EndpointLeft(this as ExtensionService);
+  }
+
+  get endpointLeft() {
+    return this.#endpointLeft;
   }
 
   createIFrame(html: string, endpointRightIdentifier?: endpointRightIdentifier): iFrameControllerIdentifier | null {
     if (!endpointRightIdentifier) return null;
 
-    const endpoint = this.#extensionHostEndpoints.get(endpointRightIdentifier);
+    const endpoint = this.#exposedExtensionServiceEndpoints.get(endpointRightIdentifier);
 
-    if (!endpoint) return null;
+    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return null;
 
     const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
     if (!extensionHostController) return null;
@@ -174,7 +214,7 @@ export class ExtensionService implements IEndpointLeft, IEndpointRight {
     //}
     ////----------------------------------------------------------------------------------
 
-    //TODO: Think of a better way to approaching error handeling.
+    //TODO: Think of a better way to approaching error handling.
     try {
       this.#app?.append(iFrame);
     } catch (error) {
@@ -188,9 +228,9 @@ export class ExtensionService implements IEndpointLeft, IEndpointRight {
   removeIFrame(iFrameIdentifier: iFrameControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean {
     if (!endpointRightIdentifier) return false;
 
-    const endpoint = this.#extensionHostEndpoints.get(endpointRightIdentifier);
+    const endpoint = this.#exposedExtensionServiceEndpoints.get(endpointRightIdentifier);
 
-    if (!endpoint) return false;
+    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
 
     const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
     if (!extensionHostController) return false;
@@ -210,15 +250,19 @@ export class ExtensionService implements IEndpointLeft, IEndpointRight {
   }
 
   removeIFrames(endpointRightIdentifier?: endpointRightIdentifier): boolean {
-    //TODO: Optimize later
     if (!endpointRightIdentifier) return false;
+    const endpoint = this.#exposedExtensionServiceEndpoints.get(endpointRightIdentifier);
 
-    const endpoint = this.#extensionHostEndpoints.get(endpointRightIdentifier);
-
-    if (!endpoint) return false;
+    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
 
     const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
     if (!extensionHostController) return false;
+
+    return this.#removeIFrames(extensionHostController);
+  }
+
+  #removeIFrames(extensionHostController: ExtensionHostController): boolean {
+    //TODO: Optimize later
 
     for (const [_, iFrameController] of extensionHostController.iFrameControllers) {
       const iFrame = iFrameController.iFrame;
@@ -238,9 +282,9 @@ export class ExtensionService implements IEndpointLeft, IEndpointRight {
   addEventListener(iFrameIdentifier: iFrameControllerIdentifier, listener: (data: any) => any, endpointRightIdentifier?: endpointRightIdentifier): eventControllerIdentifier | undefined {
     if (!endpointRightIdentifier) return undefined;
 
-    const endpoint = this.#extensionHostEndpoints.get(endpointRightIdentifier);
+    const endpoint = this.#exposedExtensionServiceEndpoints.get(endpointRightIdentifier);
 
-    if (!endpoint) return undefined;
+    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return undefined;
 
     const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
     if (!extensionHostController) return undefined;
@@ -266,30 +310,29 @@ export class ExtensionService implements IEndpointLeft, IEndpointRight {
     return undefined;
   }
 
-  removeEventListener(iFrameIdentifier: string, controllerIdentifier: number, endpointRightIdentifier?: endpointRightIdentifier): boolean {
+  removeEventListener(iFrameIdentifier: string, eventControllerIdentifier: eventControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean {
     if (!endpointRightIdentifier) return false;
 
-    const endpoint = this.#extensionHostEndpoints.get(endpointRightIdentifier);
+    const endpoint = this.#exposedExtensionServiceEndpoints.get(endpointRightIdentifier);
 
-    if (!endpoint) return false;
+    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
 
     const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
     if (!extensionHostController) return false;
 
     const iFrameController = extensionHostController.iFrameControllers.get(iFrameIdentifier);
-    if (!iFrameController || !iFrameController.eventControllers.has(controllerIdentifier)) return false;
+    if (!iFrameController || !iFrameController.eventControllers.has(eventControllerIdentifier)) return false;
 
-    iFrameController.eventControllers.get(controllerIdentifier)!.abortController.abort();
-    return iFrameController.eventControllers.delete(controllerIdentifier);
+    iFrameController.eventControllers.get(eventControllerIdentifier)!.abortController.abort();
+    return iFrameController.eventControllers.delete(eventControllerIdentifier);
   }
 
-  //Works but something with Comlink and the way the function is called block the call to the iframe froam a web worker
   postMessage(iFrameIdentifier: string, data: any, endpointRightIdentifier?: endpointRightIdentifier): boolean {
     if (!endpointRightIdentifier) return false;
 
-    const endpoint = this.#extensionHostEndpoints.get(endpointRightIdentifier);
+    const endpoint = this.#exposedExtensionServiceEndpoints.get(endpointRightIdentifier);
 
-    if (!endpoint) return false;
+    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
 
     const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
     if (!extensionHostController) return false;
@@ -305,35 +348,48 @@ export class ExtensionService implements IEndpointLeft, IEndpointRight {
     return false;
   }
 
-  loadExtensionHost(): endpointRightIdentifier {
+  async loadExtensionHost(): Promise<extensionHostControllerIdentifier> {
+
     //This might fails too cause of the path
+    //Create an extension-host
     const worker = new Worker(new URL("./extension-host.ts", import.meta.url), { type: "module" });
-    const controller = new ExtensionHostController(worker);
-    const endpoint = new ExtensionServiceEndpointRight(this as ExtensionService, controller.identifier);
 
-    this.#extensionHostControllers.set(controller.identifier, controller);
-    this.#extensionHostEndpoints.set(endpoint.identifier, endpoint);
-
-    Comlink.expose(endpoint, worker);
+    //Now we create an endpoint which we will expose to the extension-host.
+    const endpointRight = new EndpointRight(this as ExtensionService);
+    Comlink.expose(endpointRight, worker);
     sendExposed(worker);
 
-    return endpoint.identifier;
+    //Await till it has done its thing and exposed the endpoint. After that wrap the endpoint
+    await awaitExposed(worker);
+    const extensionHostEndpoint = Comlink.wrap<ExtensionHost.EndpointLeft>(worker);
+
+    //Create a controller to save all the relevant extension-host information
+    const controller = new ExtensionHostController(worker, extensionHostEndpoint);
+
+
+
+    //Saving cross identifier references
+    controller.endpointRightIdentifier = endpointRight.identifier;
+    endpointRight.extensionHostControllerIdentifier = controller.identifier;
+
+    this.#extensionHostControllers.set(controller.identifier, controller);
+    this.#exposedExtensionServiceEndpoints.set(endpointRight.identifier, endpointRight);
+
+
+
+    return controller.identifier;
   }
 
-  unloadExtensionHost(endpointIdentifier: endpointRightIdentifier): boolean {
-    //Grab the endpoint from our endpoint registry (map) 
-    const endpoint = this.#extensionHostEndpoints.get(endpointIdentifier);
-    if (!endpoint) return false;
-
+  unloadExtensionHost(extensionHostControllerIdentifier: extensionHostControllerIdentifier): boolean {
     //Grab the controller from our map
-    const controller = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
-    if (!controller) return false;
+    const controller = this.#extensionHostControllers.get(extensionHostControllerIdentifier);
+    if (controller === undefined || controller.endpointRightIdentifier === undefined) return false;
 
     //Remove all created IFrames and with it all the event listeners
-    this.removeIFrames(endpoint.identifier);
+    this.#removeIFrames(controller);
 
     //Remove the endpoint from our endpoint registry
-    if (!this.#extensionHostEndpoints.delete(endpoint.identifier)) return false;
+    if (!this.#exposedExtensionServiceEndpoints.delete(controller.endpointRightIdentifier)) return false;
 
     //Terminate the worker and set our reference to null for the GC
     controller.worker!.terminate();
@@ -347,7 +403,7 @@ export class ExtensionService implements IEndpointLeft, IEndpointRight {
 
   status(): void {
     let numberControllers = this.#extensionHostControllers.size;
-    let numberEndpoints = this.#extensionHostEndpoints.size;
+    let numberEndpoints = this.#exposedExtensionServiceEndpoints.size;
     console.log(`Currently active: ${numberControllers} controller(s) and ${numberEndpoints} endpoint(s).`);
   }
 }

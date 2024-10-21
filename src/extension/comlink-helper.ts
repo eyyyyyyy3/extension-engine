@@ -1,6 +1,6 @@
 import * as Comlink from "comlink"
 
-export function exposed(ep: Comlink.Endpoint): Promise<boolean> {
+export function awaitExposed(ep: Comlink.Endpoint): Promise<boolean> {
   return new Promise((resolve) => {
     ep.addEventListener("message", function l(ev: MessageEvent) {
       if (!ev.data || !ev.data.status || ev.data.status !== "ready") {
