@@ -124,6 +124,7 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
   }
 
   async loadExtension(extensionIdentifier: extensionIdentifier): Promise<boolean> {
+    //TODO: Continue here
 
     //Early return if the extension is already loaded
     if (this.#extensionIdentifierControllerIdentifier.has(extensionIdentifier)) return false;
