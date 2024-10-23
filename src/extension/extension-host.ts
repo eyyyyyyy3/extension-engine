@@ -164,8 +164,13 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
     return true;
   }
 
-  async loadManifest(path: URL) {
-    return;
+  async resolveExtensions(): Promise<boolean> {
+    //TODO: Create an extension object, classify it and set the state to dormant or quarantine
+    return false;
+  }
+  async loadManifest(extensionIdentifier: extensionIdentifier): Promise<boolean> {
+
+    return false;
   }
   // unloadExtension(extensionWorkerIdentifier: string): boolean {
   //   worker.terminate();
