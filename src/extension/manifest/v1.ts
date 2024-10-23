@@ -14,7 +14,7 @@ export const schema = z.object({
   displayName: z.string(),                                //The display name for the extension used in the Marketplace. It is unique.
   description: z.string().optional(),                     //A description of the extension
   sponsor: z.string().url().optional(),                   //A link for people if they want to sponsor the extension
-  entrypoint: z.string(),                                 //The name of the entrypoint of the extension
+  entrypoint: z.string(),                                 //The path/name of the entrypoint of the extension
   extensionDependencies: z.string().array().optional(),   //If extensions depend on other extensions, they can be defined in here
   icon: z.string(),                                       //The path to the icon of the extension. Check size later
   developmentKey: z.string().optional(),                  //Used for partners who want access to the DB
@@ -79,12 +79,14 @@ export class Manifest implements IManifest {
     return this.#parsedData.sponsor;
   }
   entrypoint(): string {
+    //TODO: Sanitize the so that no path traversal is possible
     return this.#parsedData.entrypoint;
   }
   extensionDependencies(): string[] | undefined {
     return this.#parsedData.extensionDependencies;
   }
   icon(): string {
+    //TODO: Sanitize the path so that no path traversal is possible
     return this.#parsedData.icon;
   }
   developmentKey(): string | undefined {
