@@ -1,7 +1,8 @@
 import * as Comlink from "comlink";
-import { exists, BaseDirectory, readFile } from "@tauri-apps/plugin-fs";
 import { sendExposed, awaitExposed } from "./comlink-helper";
 import * as ExtensionService from "./extension-service";
+import * as V1 from "./manifest/v1";
+import { parseManifest } from "./manifest";
 
 export type endpointRightIdentifier = number;
 export type endpointLeftIdentifier = number;
@@ -15,6 +16,40 @@ export type extensionIdentifier = string;
 // class UIEndpoint implements IUIEndpoint {
 //
 // }
+
+export class Extension {
+  identifier: extensionIdentifier;
+  location: string;
+  manifest: V1.Manifest;
+  entrypoint: File | undefined;
+  icon: File | undefined;
+  classification: string; //official, development, malicious
+  state: string; //dormant, active, quarantine
+  blake3: string;
+  numericIdentifier: number | undefined;
+  extensionWorkerControllerIdentifier: extensionWorkerControllerIdentifier | undefined;
+  private constructor(identifier: extensionIdentifier, location: string, manifest: V1.Manifest,
+    classification: string, state: string, blake3: string,
+    entrypoint?: File, icon?: File, numericIdentifier?: number) {
+    this.identifier = identifier;
+    this.location = location;
+    this.manifest = manifest;
+    this.entrypoint = entrypoint;
+    this.icon = icon;
+    this.classification = classification;
+    this.state = state;
+    this.blake3 = blake3;
+    this.numericIdentifier = numericIdentifier;
+    this.extensionWorkerControllerIdentifier = undefined;
+  }
+
+  static async new(location: string): Promise<Extension | null> {
+    //TODO: Replace with the new SDK function wrapper
+    //if (!await readFile(location.concat("/", "manifest.json"))) return null;
+
+    return null;
+  }
+}
 
 export interface IEndpointLeft {
   //Add more ways of loading an Extension for example from an Server.
@@ -103,8 +138,6 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
   #extensionWorkerEndpoints: Map<endpointRightIdentifier, EndpointRight>;
   #extensionWorkerControllers: Map<extensionWorkerControllerIdentifier, ExtensionWorkerController>;
 
-  //This map is used to translate extensionIdentifiers to their extension-worker controller identifier;
-  #extensionIdentifierControllerIdentifier: Map<extensionIdentifier, extensionWorkerControllerIdentifier>;
 
   #endpointLeft: EndpointLeft;
   #extensionServiceEndpointRight: Comlink.Remote<ExtensionService.EndpointRight>;
@@ -112,7 +145,7 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
   constructor(extensionServiceEndpointRight: Comlink.Remote<ExtensionService.EndpointRight>) {
     this.#extensionWorkerEndpoints = new Map<endpointRightIdentifier, EndpointRight>();
     this.#extensionWorkerControllers = new Map<extensionWorkerControllerIdentifier, ExtensionWorkerController>;
-    this.#extensionIdentifierControllerIdentifier = new Map<extensionIdentifier, extensionWorkerControllerIdentifier>;
+
 
     this.#endpointLeft = new EndpointLeft(this as ExtensionHost);
 
@@ -124,10 +157,10 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
   }
 
   async loadExtension(extensionIdentifier: extensionIdentifier): Promise<boolean> {
-    //TODO: Continue here
 
     //Early return if the extension is already loaded
-    if (this.#extensionIdentifierControllerIdentifier.has(extensionIdentifier)) return false;
+    //TODO: Rework
+    //if (this.#extensionIdentifierControllerIdentifier.has(extensionIdentifier)) return false;
 
     //This might fails because of the path just so you know Amer
     const worker = new Worker(new URL("./extension-worker", import.meta.url), { type: "module" });
@@ -149,6 +182,8 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
   }
 
   unloadExtension(extensionIdentifier: extensionIdentifier): boolean {
+    //TODO: Rework
+
     const extensionWorkerControllerIdentifier = this.#extensionIdentifierControllerIdentifier.get(extensionIdentifier);
     if (extensionWorkerControllerIdentifier === undefined) return false;
 

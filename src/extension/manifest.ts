@@ -1,6 +1,6 @@
 import * as V1 from "./manifest/v1";
 
-function parseManifest(data: any): undefined | V1.Manifest {
+export function parseManifest(data: any): undefined | V1.Manifest {
 
   const version = data.version;
   switch (version) {
