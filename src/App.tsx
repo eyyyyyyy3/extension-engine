@@ -5,6 +5,7 @@ import "./App.css";
 
 import * as Comlink from "comlink";
 import { ExtensionService, EndpointLeft } from "./extension/extension-service";
+import { acquireSDK } from "./sdk/sdk";
 
 function App() {
   const [greetMsg, setGreetMsg] = useState("");
@@ -13,6 +14,7 @@ function App() {
   const extensionService = new ExtensionService();
   const extensionServiceL = extensionService.endpointLeft;
   extensionServiceL.loadExtensionHost().then((data) => console.log(data));
+
 
   return (
     <main className="container">

@@ -3,6 +3,8 @@ import { sendExposed, awaitExposed } from "./comlink-helper";
 import * as ExtensionService from "./extension-service";
 import * as V1 from "./manifest/v1";
 import { parseManifest } from "./manifest";
+import { acquireSDK } from "../sdk/sdk";
+import { ASDK } from "../sdk/abstracts/sdk";
 
 export type endpointRightIdentifier = number;
 export type endpointLeftIdentifier = number;
@@ -43,12 +45,12 @@ export class Extension {
     this.extensionWorkerControllerIdentifier = undefined;
   }
 
-  static async new(location: string): Promise<Extension | null> {
-    //TODO: Replace with the new SDK function wrapper
-    //if (!await readFile(location.concat("/", "manifest.json"))) return null;
-
-    return null;
-  }
+  // static async new(location: string): Promise<Extension | null> {
+  //   //TODO: Replace with the new SDK function wrapper
+  //   //if (!await readFile(location.concat("/", "manifest.json"))) return null;
+  //
+  //   return null;
+  // }
 }
 
 export interface IEndpointLeft {
@@ -138,6 +140,7 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
   #extensionWorkerEndpoints: Map<endpointRightIdentifier, EndpointRight>;
   #extensionWorkerControllers: Map<extensionWorkerControllerIdentifier, ExtensionWorkerController>;
 
+  #sdk: ASDK;
 
   #endpointLeft: EndpointLeft;
   #extensionServiceEndpointRight: Comlink.Remote<ExtensionService.EndpointRight>;
@@ -146,6 +149,7 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
     this.#extensionWorkerEndpoints = new Map<endpointRightIdentifier, EndpointRight>();
     this.#extensionWorkerControllers = new Map<extensionWorkerControllerIdentifier, ExtensionWorkerController>;
 
+    this.#sdk = acquireSDK();
 
     this.#endpointLeft = new EndpointLeft(this as ExtensionHost);
 
@@ -184,33 +188,59 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
   unloadExtension(extensionIdentifier: extensionIdentifier): boolean {
     //TODO: Rework
 
-    const extensionWorkerControllerIdentifier = this.#extensionIdentifierControllerIdentifier.get(extensionIdentifier);
-    if (extensionWorkerControllerIdentifier === undefined) return false;
-
-    const controller = this.#extensionWorkerControllers.get(extensionWorkerControllerIdentifier);
-    if (controller === undefined || controller.endpointRightIdentifier === undefined) return false;
-
-    if (!this.#extensionWorkerEndpoints.delete(controller.endpointRightIdentifier)) return false;
-
-    controller.worker!.terminate();
-    controller.worker = null;
-
-    if (!this.#extensionWorkerControllers.delete(controller.identifier)) return false;
+    // const extensionWorkerControllerIdentifier = this.#extensionIdentifierControllerIdentifier.get(extensionIdentifier);
+    // if (extensionWorkerControllerIdentifier === undefined) return false;
+    //
+    // const controller = this.#extensionWorkerControllers.get(extensionWorkerControllerIdentifier);
+    // if (controller === undefined || controller.endpointRightIdentifier === undefined) return false;
+    //
+    // if (!this.#extensionWorkerEndpoints.delete(controller.endpointRightIdentifier)) return false;
+    //
+    // controller.worker!.terminate();
+    // controller.worker = null;
+    //
+    // if (!this.#extensionWorkerControllers.delete(controller.identifier)) return false;
     return true;
   }
 
   async resolveExtensions(): Promise<boolean> {
     //TODO: Create an extension object, classify it and set the state to dormant or quarantine
-    return false;
-  }
-  async loadManifest(extensionIdentifier: extensionIdentifier): Promise<boolean> {
+    const pluginDirectories = await this.#sdk.readDir("plugins");
+    console.log(pluginDirectories);
 
+    const extensions: Extension[] = [];
+
+    for (const directory of pluginDirectories) {
+      if (!directory.isDirectory) continue;
+
+      const manifestPath = directory.name.concat("/manifest.json");
+      if (!await this.#sdk.exists(manifestPath)) continue;
+
+      const textDecoder = new TextDecoder();
+
+      //transform the raw u8 bytes to text and then parse it to a JSON object
+      const rawManifest = await this.#sdk.readFile(manifestPath);
+      const jsonManifestString = textDecoder.decode(rawManifest);
+      const jsonManifest = JSON.parse(jsonManifestString);
+
+      const manifest = parseManifest(jsonManifest);
+      if (manifest === null) continue;
+
+      const entrypointPath = manifest.entrypoint();
+      if (!await this.#sdk.exists(entrypointPath)) continue;
+
+      const iconPath = manifest.icon();
+      if (!await this.#sdk.exists(iconPath)) continue;
+
+      const rawEntrypoint: Uint8Array = await this.#sdk.readFile(entrypointPath);
+      const entrypoint = new File([rawEntrypoint], "entrypoint", { type: "text/javascript" });
+
+      const rawIcon = await this.#sdk.readFile(iconPath);
+      const icon = new File([rawIcon], "icon", { type: "image/png" });
+      //TODO: Continue here
+    }
     return false;
   }
-  // unloadExtension(extensionWorkerIdentifier: string): boolean {
-  //   worker.terminate();
-  //   return false;
-  // }
 
 }
 

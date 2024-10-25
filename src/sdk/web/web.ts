@@ -1,4 +1,4 @@
-import { ASDK } from "../sdk";
+import { ASDK } from "../abstracts/sdk";
 import { WebFS } from "./fs";
 
 export class WebSDK extends ASDK {

@@ -1,8 +1,9 @@
-import { ASDK } from "../sdk";
+import { ASDK } from "../abstracts/sdk";
 import { NativeFS } from "./fs";
 
 export class NativeSDK extends ASDK {
   constructor() {
-    super(new NativeFS());
+    const fs = new NativeFS();
+    super(fs);
   }
 }

@@ -18,6 +18,10 @@
       "allow": [{"path": "$APPLOCALDATA/*"}]
     },
     {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{"path": "$APPLOCALDATA/*"}]
+    },
+    {
       "identifier": "fs:read-files",
       "allow": [{"path": "$APPLOCALDATA/*"}]
     },

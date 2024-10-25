@@ -16,7 +16,7 @@ export const schema = z.object({
   sponsor: z.string().url().optional(),                   //A link for people if they want to sponsor the extension
   entrypoint: z.string(),                                 //The path/name of the entrypoint of the extension
   extensionDependencies: z.string().array().optional(),   //If extensions depend on other extensions, they can be defined in here
-  icon: z.string(),                                       //The path to the icon of the extension. Check size later
+  icon: z.string(),                                       //The path to the icon of the extension. Check size later. The format is png
   developmentKey: z.string().optional(),                  //Used for partners who want access to the DB
 })
 

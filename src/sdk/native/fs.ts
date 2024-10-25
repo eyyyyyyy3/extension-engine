@@ -1,6 +1,5 @@
 import { exists, BaseDirectory, readFile, mkdir, readDir, DirEntry } from "@tauri-apps/plugin-fs";
-import { IDirectoryEntry, IFS } from "../sdk";
-
+import { IDirectoryEntry, IFS } from "../interfaces/fs";
 export class NativeFS implements IFS {
   exists(path: string | URL): Promise<boolean> {
     return exists(path, { baseDir: BaseDirectory.AppLocalData });
