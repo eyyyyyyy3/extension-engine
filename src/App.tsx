@@ -1,19 +1,15 @@
 import { useState } from "react";
 import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
-import * as Comlink from "comlink";
-import { ExtensionService, EndpointLeft } from "./extension/extension-service";
-import { acquireSDK } from "./sdk/sdk";
+import { ExtensionService } from "./extension/extension-service";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
   const [name, setName] = useState("");
 
   const extensionService = new ExtensionService();
   const extensionServiceL = extensionService.endpointLeft;
-  extensionServiceL.loadExtensionHost().then((data) => console.log(data));
+  const extensionHostControllerIdentifier = extensionServiceL.loadExtensionHost().then((data) => console.log(data));
 
 
   return (

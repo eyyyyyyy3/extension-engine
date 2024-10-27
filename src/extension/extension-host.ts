@@ -2,8 +2,9 @@ import * as Comlink from "comlink";
 import { sendExposed, awaitExposed } from "./comlink-helper";
 import * as ExtensionService from "./extension-service";
 import * as V1 from "./manifest/v1";
+
 import { parseManifest } from "./manifest";
-import { acquireSDK } from "../sdk/sdk";
+
 import { ASDK } from "../sdk/abstracts/sdk";
 
 export type endpointRightIdentifier = number;
@@ -21,17 +22,17 @@ export type extensionIdentifier = string;
 
 export class Extension {
   identifier: extensionIdentifier;
-  location: string;
+  location: string | URL;
   manifest: V1.Manifest;
   entrypoint: File | undefined;
   icon: File | undefined;
-  classification: string; //official, development, malicious
+  classification: string; //official, development, malicious, unknown
   state: string; //dormant, active, quarantine
-  blake3: string;
+  blake3: Uint8Array;
   numericIdentifier: number | undefined;
   extensionWorkerControllerIdentifier: extensionWorkerControllerIdentifier | undefined;
-  private constructor(identifier: extensionIdentifier, location: string, manifest: V1.Manifest,
-    classification: string, state: string, blake3: string,
+  constructor(identifier: extensionIdentifier, location: string, manifest: V1.Manifest,
+    classification: string, state: string, blake3: Uint8Array,
     entrypoint?: File, icon?: File, numericIdentifier?: number) {
     this.identifier = identifier;
     this.location = location;
@@ -53,11 +54,12 @@ export class Extension {
   // }
 }
 
-export interface IEndpointLeft {
-  //Add more ways of loading an Extension for example from an Server.
+interface IEndpointLeft {
+  //Add more ways of loading an Extension for example from a Server.
   //Also, because the Identifier of an extension has to be unique globally, we can just go by the extensionIdentifier;
   loadExtension(extensionIdentifier: extensionIdentifier): Promise<boolean>;
   unloadExtension(extensionIdentifier: extensionIdentifier): boolean;
+  resolveExtensions(): Promise<void>;
 }
 
 interface IEndpointRight {
@@ -77,12 +79,16 @@ export class EndpointLeft implements IEndpointLeft {
     this.#extensionHost = extensionHost;
   }
 
-  async loadExtension(extensionIdentifier: extensionIdentifier): Promise<boolean> {
+  loadExtension(extensionIdentifier: extensionIdentifier): Promise<boolean> {
     return this.#extensionHost.loadExtension(extensionIdentifier);
   }
 
   unloadExtension(extensionIdentifier: extensionIdentifier): boolean {
-    return this.unloadExtension(extensionIdentifier);
+    return this.#extensionHost.unloadExtension(extensionIdentifier);
+  }
+
+  resolveExtensions(): Promise<void> {
+    return this.#extensionHost.resolveExtensions();
   }
 }
 
@@ -139,17 +145,19 @@ class ExtensionWorkerController {
 class ExtensionHost implements IEndpointLeft, IEndpointRight {
   #extensionWorkerEndpoints: Map<endpointRightIdentifier, EndpointRight>;
   #extensionWorkerControllers: Map<extensionWorkerControllerIdentifier, ExtensionWorkerController>;
+  #extensions: Map<extensionIdentifier, Extension>;
 
-  #sdk: ASDK;
+  #sdk: Comlink.Remote<ASDK>;
 
   #endpointLeft: EndpointLeft;
   #extensionServiceEndpointRight: Comlink.Remote<ExtensionService.EndpointRight>;
 
-  constructor(extensionServiceEndpointRight: Comlink.Remote<ExtensionService.EndpointRight>) {
+  constructor(extensionServiceEndpointRight: Comlink.Remote<ExtensionService.EndpointRight>, sdk: Comlink.Remote<ASDK>) {
     this.#extensionWorkerEndpoints = new Map<endpointRightIdentifier, EndpointRight>();
-    this.#extensionWorkerControllers = new Map<extensionWorkerControllerIdentifier, ExtensionWorkerController>;
+    this.#extensionWorkerControllers = new Map<extensionWorkerControllerIdentifier, ExtensionWorkerController>();
+    this.#extensions = new Map<extensionIdentifier, Extension>();
 
-    this.#sdk = acquireSDK();
+    this.#sdk = sdk;
 
     this.#endpointLeft = new EndpointLeft(this as ExtensionHost);
 
@@ -203,51 +211,83 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
     return true;
   }
 
-  async resolveExtensions(): Promise<boolean> {
-    //TODO: Create an extension object, classify it and set the state to dormant or quarantine
-    const pluginDirectories = await this.#sdk.readDir("plugins");
-    console.log(pluginDirectories);
+  async resolveExtensions(): Promise<void> {
+    //Check if plugins exists and if not create the plugins dir and return
+    if (!await this.#sdk.exists("plugins")) {
+      await this.#sdk.mkdir("plugins");
+      return;
+    }
 
-    const extensions: Extension[] = [];
+    const pluginDirectories = await this.#sdk.readDir("plugins");
 
     for (const directory of pluginDirectories) {
-      if (!directory.isDirectory) continue;
+      //If error then continue to the next entry
+      try {
+        if (!directory.isDirectory) continue;
 
-      const manifestPath = directory.name.concat("/manifest.json");
-      if (!await this.#sdk.exists(manifestPath)) continue;
+        //The current plugins path
+        const pluginPath = "plugins/".concat(directory.name, "/");
 
-      const textDecoder = new TextDecoder();
+        const manifestPath = pluginPath.concat("manifest.json");
+        if (!await this.#sdk.exists(manifestPath)) continue;
 
-      //transform the raw u8 bytes to text and then parse it to a JSON object
-      const rawManifest = await this.#sdk.readFile(manifestPath);
-      const jsonManifestString = textDecoder.decode(rawManifest);
-      const jsonManifest = JSON.parse(jsonManifestString);
+        const textDecoder = new TextDecoder();
+        //transform the raw u8 bytes to text and then parse it to a JSON object
+        const rawManifest = await this.#sdk.readFile(manifestPath);
+        const jsonManifestString = textDecoder.decode(rawManifest);
+        const jsonManifest = JSON.parse(jsonManifestString);
+        const manifest = parseManifest(jsonManifest);
+        if (manifest === null) continue;
 
-      const manifest = parseManifest(jsonManifest);
-      if (manifest === null) continue;
+        const entrypointPath = pluginPath.concat(manifest.entrypoint());
+        if (!await this.#sdk.exists(entrypointPath)) continue;
 
-      const entrypointPath = manifest.entrypoint();
-      if (!await this.#sdk.exists(entrypointPath)) continue;
+        const iconPath = pluginPath.concat(manifest.icon());
+        if (!await this.#sdk.exists(iconPath)) continue;
 
-      const iconPath = manifest.icon();
-      if (!await this.#sdk.exists(iconPath)) continue;
+        const rawEntrypoint: Uint8Array = await this.#sdk.readFile(entrypointPath);
+        const entrypoint = new File([rawEntrypoint], "entrypoint", { type: "text/javascript" });
 
-      const rawEntrypoint: Uint8Array = await this.#sdk.readFile(entrypointPath);
-      const entrypoint = new File([rawEntrypoint], "entrypoint", { type: "text/javascript" });
+        const rawIcon = await this.#sdk.readFile(iconPath);
+        const icon = new File([rawIcon], "icon", { type: "image/png" });
 
-      const rawIcon = await this.#sdk.readFile(iconPath);
-      const icon = new File([rawIcon], "icon", { type: "image/png" });
-      //TODO: Continue here
+        const hashData = new Uint8Array(rawManifest.length + rawEntrypoint.length + rawIcon.length);
+        hashData.set(rawManifest);
+        hashData.set(rawEntrypoint, rawManifest.length);
+        hashData.set(rawIcon, rawManifest.length + rawEntrypoint.length);
+
+        const blake3 = await this.#sdk.blake3(hashData);
+
+        //TODO: Classification & state
+
+        const extension = new Extension(
+          manifest.identifier(),
+          pluginPath,
+          manifest,
+          "unknown",
+          "dormant",
+          blake3,
+          entrypoint,
+          icon
+        );
+
+        //TODO: Additional checks if the plugin is already loaded. Currently if there 
+        //are two extensions with the same identifier the newer one will overwrite
+        this.#extensions.set(extension.identifier, extension);
+      } catch (error) {
+        console.error(error);
+        continue;
+      }
     }
-    return false;
+    console.log(this.#extensions);
   }
 
 }
 
 ////----------------------------------------------------------------------------------
-await awaitExposed(self);
-const extensionServiceEndpointRight = Comlink.wrap<ExtensionService.EndpointRight>(self);
-const extensionHost = new ExtensionHost(extensionServiceEndpointRight);
 
+await awaitExposed(self);
+const { endpoint, sdk } = Comlink.wrap<ExtensionService.IExposeRight>(self);
+const extensionHost = new ExtensionHost(endpoint, sdk);
 Comlink.expose(extensionHost.endpointLeft, self);
-sendExposed(self,);
+sendExposed(self);

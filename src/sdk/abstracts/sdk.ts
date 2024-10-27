@@ -1,8 +1,10 @@
 import { IDirectoryEntry, IFS } from "../interfaces/fs";
+import { ICryptography } from "../interfaces/cryptography";
 
-export abstract class ASDK implements IFS {
+export abstract class ASDK implements IFS, ICryptography {
   #fs: IFS;
-  constructor(fs: IFS) { this.#fs = fs; }
+  #cryptography: ICryptography;
+  constructor(fs: IFS, cryptography: ICryptography) { this.#fs = fs; this.#cryptography = cryptography; }
 
   exists(path: string | URL): Promise<boolean> {
     //I could add logging in all these function wrappers
@@ -16,8 +18,13 @@ export abstract class ASDK implements IFS {
   mkdir(path: string | URL): Promise<void> {
     return this.#fs.mkdir(path);
   }
+
   readDir(path: string | URL): Promise<IDirectoryEntry[]> {
     return this.#fs.readDir(path);
+  }
+
+  blake3(data: Uint8Array): Promise<Uint8Array> {
+    return this.#cryptography.blake3(data);
   }
 }
 

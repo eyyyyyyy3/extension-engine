@@ -1,6 +1,8 @@
 import * as Comlink from "comlink";
 import { sendExposed, awaitExposed } from "./comlink-helper";
 import * as ExtensionHost from "./extension-host";
+import { acquireSDK } from "../sdk";
+import { ASDK } from "../sdk/abstracts/sdk";
 
 export type eventControllerIdentifier = number;
 class EventController {
@@ -27,6 +29,11 @@ class IFrameController {
     IFrameController.#currentIdentifier += 1;
     this.iFrame = iFrame;
   }
+}
+
+export interface IExposeRight {
+  endpoint: EndpointRight & Comlink.ProxyMarked;
+  sdk: ASDK & Comlink.ProxyMarked;
 }
 
 //The ExtensionHostController hold all the relevant information of an extension-host.
@@ -85,8 +92,7 @@ interface IEndpointRight {
 
 export type endpointRightIdentifier = number;
 
-export class EndpointLeft implements IEndpointLeft {
-  //TODO: Make this a singleton
+class EndpointLeft implements IEndpointLeft {
 
   //Cause there should only be one single instance of an EndpointLeft,
   //there is no need for any identifier.
@@ -95,7 +101,7 @@ export class EndpointLeft implements IEndpointLeft {
     this.#extensionService = extensionService;
   }
 
-  async loadExtensionHost(): Promise<extensionHostControllerIdentifier> {
+  loadExtensionHost(): Promise<extensionHostControllerIdentifier> {
     return this.#extensionService.loadExtensionHost();
   }
 
@@ -161,6 +167,12 @@ export class EndpointRight implements IEndpointRight {
 export class ExtensionService implements IEndpointLeft, IEndpointRight {
   #app = document.getElementById("extension"); //TODO: change this later 
 
+  //Currently because of https://github.com/tauri-apps/tauri/issues/3308#issuecomment-1025132141
+  //the sdk has to be created within the context of the main thread. Because of this
+  //limitation, we are creating an instance of the sdk in the constructor
+  //(as ExtensionService has to be initiated inside of the main thread) and passing
+  //it to the ExtensionHost as a Comlink.ProxyMarked
+  #sdk: ASDK;
   #exposedExtensionServiceEndpoints: Map<endpointRightIdentifier, EndpointRight>;
   #extensionHostControllers: Map<extensionHostControllerIdentifier, ExtensionHostController>;
   #endpointLeft: EndpointLeft;
@@ -169,6 +181,8 @@ export class ExtensionService implements IEndpointLeft, IEndpointRight {
     this.#exposedExtensionServiceEndpoints = new Map<endpointRightIdentifier, EndpointRight>();
     this.#extensionHostControllers = new Map<extensionHostControllerIdentifier, ExtensionHostController>();
     this.#endpointLeft = new EndpointLeft(this as ExtensionService);
+
+    this.#sdk = acquireSDK();
   }
 
   get endpointLeft() {
@@ -354,15 +368,21 @@ export class ExtensionService implements IEndpointLeft, IEndpointRight {
     //Create an extension-host
     const worker = new Worker(new URL("./extension-host.ts", import.meta.url), { type: "module" });
 
-    //Now we create an endpoint which we will expose to the extension-host.
+    //Now we create the endpoint and sdk proxy which we will expose to the extension-host.
     const endpointRight = new EndpointRight(this as ExtensionService);
-    Comlink.expose(endpointRight, worker);
+
+    const exposeRight: IExposeRight = {
+      endpoint: Comlink.proxy(endpointRight),
+      sdk: Comlink.proxy(this.#sdk),
+    };
+
+    Comlink.expose(exposeRight, worker);
     sendExposed(worker);
 
     //Await till it has done its thing and exposed the endpoint. After that wrap the endpoint
     await awaitExposed(worker);
-    const extensionHostEndpoint = Comlink.wrap<ExtensionHost.EndpointLeft>(worker);
 
+    const extensionHostEndpoint = Comlink.wrap<ExtensionHost.EndpointLeft>(worker);
     //Create a controller to save all the relevant extension-host information
     const controller = new ExtensionHostController(worker, extensionHostEndpoint);
 
@@ -375,7 +395,8 @@ export class ExtensionService implements IEndpointLeft, IEndpointRight {
     this.#extensionHostControllers.set(controller.identifier, controller);
     this.#exposedExtensionServiceEndpoints.set(endpointRight.identifier, endpointRight);
 
-
+    //Automatically resolve all the extensions after ExtensionHost creation
+    await extensionHostEndpoint.resolveExtensions();
 
     return controller.identifier;
   }

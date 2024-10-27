@@ -11,27 +11,27 @@
     "fs:default",
     {
       "identifier": "fs:allow-exists",
-      "allow": [{"path": "$APPLOCALDATA/*"}]
+      "allow": [{"path": "$APPLOCALDATA/**"}]
     },
     {
       "identifier": "fs:allow-create",
-      "allow": [{"path": "$APPLOCALDATA/*"}]
+      "allow": [{"path": "$APPLOCALDATA/**"}]
     },
     {
       "identifier": "fs:allow-mkdir",
-      "allow": [{"path": "$APPLOCALDATA/*"}]
+      "allow": [{"path": "$APPLOCALDATA/**"}]
     },
     {
       "identifier": "fs:read-files",
-      "allow": [{"path": "$APPLOCALDATA/*"}]
+      "allow": [{"path": "$APPLOCALDATA/**"}]
     },
     {
       "identifier": "fs:read-dirs",
-      "allow": [{"path": "$APPLOCALDATA/*"}]
+      "allow": [{"path": "$APPLOCALDATA/**"}]
     },
     {
       "identifier": "fs:write-files",
-      "allow": [{"path": "$APPLOCALDATA/*"}]
+      "allow": [{"path": "$APPLOCALDATA/**"}]
     }
   ]
 }

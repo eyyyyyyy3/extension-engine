@@ -7,7 +7,10 @@ export function parseManifest(data: any): null | V1.Manifest {
     case "1.0":
       {
         const parsedSchema = V1.schema.safeParse(data);
-        if (!parsedSchema.success) return null;
+        if (!parsedSchema.success) {
+          console.error(parsedSchema.error);
+          return null;
+        }
 
         return new V1.Manifest(parsedSchema.data);
       }
