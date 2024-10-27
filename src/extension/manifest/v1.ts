@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { string, z } from "zod";
 
 const runtimeEnum = z.enum(["native", "web", "universal"]);
 
@@ -17,6 +17,7 @@ export const schema = z.object({
   entrypoint: z.string(),                                 //The path/name of the entrypoint of the extension
   extensionDependencies: z.string().array().optional(),   //If extensions depend on other extensions, they can be defined in here
   icon: z.string(),                                       //The path to the icon of the extension. Check size later. The format is png
+  ui: z.record(z.string()).optional(),                               //Similar to figmas ui definition
   developmentKey: z.string().optional(),                  //Used for partners who want access to the DB
 })
 
@@ -36,6 +37,7 @@ export interface IManifest {
   entrypoint(): string;
   extensionDependencies(): string[] | undefined;
   icon(): string;
+  ui(): Record<string, string> | undefined;
   developmentKey(): string | undefined;
 }
 
@@ -88,6 +90,9 @@ export class Manifest implements IManifest {
   icon(): string {
     //TODO: Sanitize the path so that no path traversal is possible
     return this.#parsedData.icon;
+  }
+  ui(): Record<string, string> | undefined {
+    return this.#parsedData.ui;
   }
   developmentKey(): string | undefined {
     return this.#parsedData.developmentKey;

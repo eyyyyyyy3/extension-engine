@@ -6,6 +6,7 @@ import * as V1 from "./manifest/v1";
 import { parseManifest } from "./manifest";
 
 import { ASDK } from "../sdk/abstracts/sdk";
+import { exists } from "@tauri-apps/plugin-fs";
 
 export type endpointRightIdentifier = number;
 export type endpointLeftIdentifier = number;
@@ -26,6 +27,7 @@ export class Extension {
   manifest: V1.Manifest;
   entrypoint: File | undefined;
   icon: File | undefined;
+  ui: Map<string, File> | undefined;
   classification: string; //official, development, malicious, unknown
   state: string; //dormant, active, quarantine
   blake3: Uint8Array;
@@ -33,12 +35,13 @@ export class Extension {
   extensionWorkerControllerIdentifier: extensionWorkerControllerIdentifier | undefined;
   constructor(identifier: extensionIdentifier, location: string, manifest: V1.Manifest,
     classification: string, state: string, blake3: Uint8Array,
-    entrypoint?: File, icon?: File, numericIdentifier?: number) {
+    entrypoint?: File, icon?: File, ui?: Map<string, File>, numericIdentifier?: number) {
     this.identifier = identifier;
     this.location = location;
     this.manifest = manifest;
     this.entrypoint = entrypoint;
     this.icon = icon;
+    this.ui = ui;
     this.classification = classification;
     this.state = state;
     this.blake3 = blake3;
@@ -218,15 +221,16 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
       return;
     }
 
-    const pluginDirectories = await this.#sdk.readDir("plugins");
+    const pluginDirectories = await this.#sdk.readDir("./plugins");
 
+    //Labeled loop cause we want to skip the current plugin even when in some nested loop
     for (const directory of pluginDirectories) {
       //If error then continue to the next entry
       try {
         if (!directory.isDirectory) continue;
 
         //The current plugins path
-        const pluginPath = "plugins/".concat(directory.name, "/");
+        const pluginPath = "./plugins/".concat(directory.name, "/");
 
         const manifestPath = pluginPath.concat("manifest.json");
         if (!await this.#sdk.exists(manifestPath)) continue;
@@ -251,14 +255,38 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
         const rawIcon = await this.#sdk.readFile(iconPath);
         const icon = new File([rawIcon], "icon", { type: "image/png" });
 
-        const hashData = new Uint8Array(rawManifest.length + rawEntrypoint.length + rawIcon.length);
-        hashData.set(rawManifest);
-        hashData.set(rawEntrypoint, rawManifest.length);
-        hashData.set(rawIcon, rawManifest.length + rawEntrypoint.length);
+        //Grab all the ui files
+        const uiRecord = manifest.ui();
+
+        let uiMap: Map<string, File> | undefined;
+        let rawUIArray: Uint8Array[] = [];
+
+        if (uiRecord !== undefined) {
+          uiMap = new Map<string, File>();
+
+          for (const key in uiRecord) {
+            if (uiRecord.hasOwnProperty(key)) {
+              const uiPath = pluginPath.concat(uiRecord[key]);
+
+              if (!await this.#sdk.exists(uiPath))
+                throw new Error(`[MANIFEST] ${uiPath} not found! Make sure it exists!`);
+
+              const rawUI = await this.#sdk.readFile(uiPath);
+              const ui = new File([rawUI], key, { type: "text/html" });
+              uiMap.set(key, ui);
+
+              rawUIArray.push(rawUI);
+            }
+          }
+        }
+
+        const hashData = mergeUint8Arrays(rawManifest, rawEntrypoint, rawIcon, ...rawUIArray);
 
         const blake3 = await this.#sdk.blake3(hashData);
 
-        //TODO: Classification & state
+        //TODO: Continue here
+
+        //TODO: Classification & state & numericIdentifier
 
         const extension = new Extension(
           manifest.identifier(),
@@ -268,10 +296,11 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
           "dormant",
           blake3,
           entrypoint,
-          icon
+          icon,
+          uiMap
         );
 
-        //TODO: Additional checks if the plugin is already loaded. Currently if there 
+        //TODO: Additional checks if the plugin is already loaded. Currently if there
         //are two extensions with the same identifier the newer one will overwrite
         this.#extensions.set(extension.identifier, extension);
       } catch (error) {
@@ -282,6 +311,23 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
     console.log(this.#extensions);
   }
 
+}
+
+function mergeUint8Arrays(...arrays: Uint8Array[]): Uint8Array {
+  // Calculate the total length of all arrays
+  const totalLength = arrays.reduce((acc, array) => acc + array.length, 0);
+
+  // Create a new Uint8Array with the total length
+  const mergedArray = new Uint8Array(totalLength);
+
+  // Copy each array into the new merged array
+  let offset = 0;
+  for (const array of arrays) {
+    mergedArray.set(array, offset);
+    offset += array.length;
+  }
+
+  return mergedArray;
 }
 
 ////----------------------------------------------------------------------------------
