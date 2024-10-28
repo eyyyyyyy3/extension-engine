@@ -3,8 +3,8 @@ import { sendExposed, awaitExposed } from "./comlink-helper";
 import * as ExtensionHost from "./extension-host";
 import { acquireSDK } from "../sdk";
 import { ASDK } from "../sdk/abstracts/sdk";
+import { endpointRightIdentifier, eventControllerIdentifier, extensionHostControllerIdentifier, iFrameControllerIdentifier } from "./types";
 
-export type eventControllerIdentifier = number;
 class EventController {
   static #currentIdentifier: eventControllerIdentifier = 0;
   identifier: eventControllerIdentifier;
@@ -17,7 +17,6 @@ class EventController {
   }
 }
 
-export type iFrameControllerIdentifier = string;
 class IFrameController {
   static #currentIdentifier: number = 0;
   eventControllers: Map<number, EventController>;
@@ -40,7 +39,6 @@ export interface IExposeRight {
 //It has references to the actual web worker and all the IFrames that were opened via
 //that extension-host and the actual endpoint of the extension-host. The controllers
 //are used by both the left and the right ExtensionServiceEndpoints.
-export type extensionHostControllerIdentifier = number;
 class ExtensionHostController {
   static #currentIdentifier: extensionHostControllerIdentifier = 0;
   identifier: extensionHostControllerIdentifier;
@@ -94,7 +92,6 @@ interface IEndpointRight {
   postMessage(iFrameIdentifier: string, data: any, endpointRightIdentifier?: endpointRightIdentifier): boolean;
 }
 
-export type endpointRightIdentifier = number;
 
 class EndpointLeft implements IEndpointLeft {
   //Because there should only be one single instance of an EndpointLeft,

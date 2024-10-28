@@ -9,11 +9,8 @@ import { parseManifest } from "./manifest";
 import { ASDK } from "../sdk/abstracts/sdk";
 import { exists } from "@tauri-apps/plugin-fs";
 import { optional } from "zod";
+import { endpointRightIdentifier, extensionIdentifier, extensionWorkerControllerIdentifier } from "./types";
 
-export type endpointRightIdentifier = number;
-export type endpointLeftIdentifier = number;
-export type extensionWorkerControllerIdentifier = number;
-export type extensionIdentifier = string;
 
 // interface IUIEndpoint {
 //
