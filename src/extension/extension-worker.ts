@@ -1,11 +1,75 @@
 import * as Comlink from "comlink";
-import { EndpointRight } from "./extension-host";
+import * as ExtensionHost from "./extension-host";
 import { sendExposed, awaitExposed } from "./comlink-helper";
 
-class ExtensionWorker {
-  #extensionHostEndpointRight: Comlink.Remote<EndpointRight>;
-  constructor(extensionHostEndpointRight: Comlink.Remote<EndpointRight>) {
+
+interface IEndpointLeft {
+  loadExtenion(entrypoint: File): boolean;
+  unloadExtension(): void;
+}
+
+interface IEndpointRight {
+  //loadUI(key: string): someHandler;
+}
+
+export class EndpointLeft implements IEndpointLeft {
+  //Because there should only be one single instance of an EndpointLeft,
+  //there is no need for any identifier.
+
+  #extensionWorker: ExtensionWorker;
+  constructor(extensionWorker: ExtensionWorker) {
+    this.#extensionWorker = extensionWorker;
+  }
+
+  loadExtenion(entrypoint: File): boolean {
+    return this.#extensionWorker.loadExtenion(entrypoint);
+  }
+
+  unloadExtension(): void {
+    return this.#extensionWorker.unloadExtension();
+  }
+
+}
+
+class EndpointRight implements IEndpointRight {
+  #extensionWorker: ExtensionWorker;
+  constructor(extensionWorker: ExtensionWorker) {
+    this.#extensionWorker = extensionWorker;
+  }
+
+}
+
+class ExtensionWorker implements IEndpointLeft, IEndpointRight {
+  #extensionHostEndpointRight: Comlink.Remote<ExtensionHost.EndpointRight>;
+  #endpointLeft: EndpointLeft;
+
+  constructor(extensionHostEndpointRight: Comlink.Remote<ExtensionHost.EndpointRight>) {
     this.#extensionHostEndpointRight = extensionHostEndpointRight;
+    this.#endpointLeft = new EndpointLeft(this as ExtensionWorker);
+  }
+
+  get endpointLeft() {
+    return this.#endpointLeft;
+  }
+
+  loadExtenion(entrypoint: File): boolean {
+    try {
+      //Create a URL from our entrypoint for our importScripts function
+      const entrypointURL = URL.createObjectURL(entrypoint);
+      //Import the entrypoint
+      importScripts(entrypointURL);
+      //Remove the URL as it is not needed anymore
+      URL.revokeObjectURL(entrypointURL);
+      //PROFIT?!?!
+      return true;
+    } catch (error) {
+      console.error(`[EXTENSION-WORKER] ${error}`);
+      return false;
+    }
+  }
+
+  unloadExtension(): void {
+
   }
 }
 
@@ -23,7 +87,7 @@ class ExtensionWorker {
 
 ////----------------------------------------------------------------------------------
 await awaitExposed(self);
-const extensionHost = new ExtensionWorker(Comlink.wrap<EndpointRight>(self));
+const extensionWorker = new ExtensionWorker(Comlink.wrap<ExtensionHost.EndpointRight>(self));
 
-// Comlink.expose(extensionHost.endpointLeft, self);
-// sendExposed(self,);
+Comlink.expose(extensionWorker.endpointLeft, self);
+sendExposed(self);

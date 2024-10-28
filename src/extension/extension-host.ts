@@ -1,12 +1,14 @@
 import * as Comlink from "comlink";
 import { sendExposed, awaitExposed } from "./comlink-helper";
 import * as ExtensionService from "./extension-service";
+import * as ExtensionWorker from "./extension-worker";
 import * as V1 from "./manifest/v1";
 
 import { parseManifest } from "./manifest";
 
 import { ASDK } from "../sdk/abstracts/sdk";
 import { exists } from "@tauri-apps/plugin-fs";
+import { optional } from "zod";
 
 export type endpointRightIdentifier = number;
 export type endpointLeftIdentifier = number;
@@ -25,17 +27,17 @@ export class Extension {
   identifier: extensionIdentifier;
   location: string | URL;
   manifest: V1.Manifest;
-  entrypoint: File | undefined;
-  icon: File | undefined;
+  entrypoint: File;
+  icon: File;
   ui: Map<string, File> | undefined;
   classification: string; //official, development, malicious, unknown
   state: string; //dormant, active, quarantine
   blake3: Uint8Array;
   numericIdentifier: number | undefined;
-  extensionWorkerControllerIdentifier: extensionWorkerControllerIdentifier | undefined;
+  extensionWorkerControllerIdentifier: extensionWorkerControllerIdentifier | null;
   constructor(identifier: extensionIdentifier, location: string, manifest: V1.Manifest,
-    classification: string, state: string, blake3: Uint8Array,
-    entrypoint?: File, icon?: File, ui?: Map<string, File>, numericIdentifier?: number) {
+    entrypoint: File, icon: File, classification: string, state: string, blake3: Uint8Array,
+    ui?: Map<string, File>, numericIdentifier?: number) {
     this.identifier = identifier;
     this.location = location;
     this.manifest = manifest;
@@ -46,22 +48,17 @@ export class Extension {
     this.state = state;
     this.blake3 = blake3;
     this.numericIdentifier = numericIdentifier;
-    this.extensionWorkerControllerIdentifier = undefined;
+    this.extensionWorkerControllerIdentifier = null;
   }
 
-  // static async new(location: string): Promise<Extension | null> {
-  //   //TODO: Replace with the new SDK function wrapper
-  //   //if (!await readFile(location.concat("/", "manifest.json"))) return null;
-  //
-  //   return null;
-  // }
 }
 
 interface IEndpointLeft {
   //Add more ways of loading an Extension for example from a Server.
   //Also, because the Identifier of an extension has to be unique globally, we can just go by the extensionIdentifier;
   loadExtension(extensionIdentifier: extensionIdentifier): Promise<boolean>;
-  unloadExtension(extensionIdentifier: extensionIdentifier): boolean;
+  unloadExtension(extensionIdentifier: extensionIdentifier): Promise<boolean>;
+  //forceUnloadExtension
   resolveExtensions(): Promise<void>;
 }
 
@@ -71,13 +68,10 @@ interface IEndpointRight {
 }
 
 export class EndpointLeft implements IEndpointLeft {
-  static #currentIdentifier: endpointRightIdentifier = 0;
-  #identifier: endpointRightIdentifier;
-
+  //Because there should only be one single instance of an EndpointLeft,
+  //there is no need for any identifier.
   #extensionHost: ExtensionHost;
   constructor(extensionHost: ExtensionHost) {
-    this.#identifier = EndpointLeft.#currentIdentifier;
-    EndpointLeft.#currentIdentifier += 1;
 
     this.#extensionHost = extensionHost;
   }
@@ -86,7 +80,7 @@ export class EndpointLeft implements IEndpointLeft {
     return this.#extensionHost.loadExtension(extensionIdentifier);
   }
 
-  unloadExtension(extensionIdentifier: extensionIdentifier): boolean {
+  unloadExtension(extensionIdentifier: extensionIdentifier): Promise<boolean> {
     return this.#extensionHost.unloadExtension(extensionIdentifier);
   }
 
@@ -127,10 +121,14 @@ class ExtensionWorkerController {
   identifier: extensionWorkerControllerIdentifier;
   worker: Worker | null;
   #endpointRightIdentifier: endpointRightIdentifier | undefined;
-  constructor(worker: Worker) {
+  #extensionIdentifier: extensionIdentifier | undefined;
+  extensionWorkerEndpoint: Comlink.Remote<ExtensionWorker.EndpointLeft>;
+
+  constructor(worker: Worker, extensionWorkerEndpoint: Comlink.Remote<ExtensionWorker.EndpointLeft>) {
     this.identifier = ExtensionWorkerController.#currentIdentifier;
     ExtensionWorkerController.#currentIdentifier += 1;
     this.worker = worker;
+    this.extensionWorkerEndpoint = extensionWorkerEndpoint;
   }
 
   get endpointRightIdentifier(): endpointRightIdentifier | undefined {
@@ -140,6 +138,15 @@ class ExtensionWorkerController {
   set endpointRightIdentifier(endpointRightIdentifier: endpointRightIdentifier) {
     if (this.#endpointRightIdentifier !== undefined) return;
     this.#endpointRightIdentifier = endpointRightIdentifier;
+  }
+
+  get extensionIdentifier(): extensionIdentifier | undefined {
+    return this.#extensionIdentifier;
+  }
+
+  set extensionIdentifier(extensionIdentifier: extensionIdentifier) {
+    if (this.#extensionIdentifier !== undefined) return;
+    this.#extensionIdentifier = extensionIdentifier;
   }
 
   //extensionWorkerEndpoint: Comlink.Remote<ExtensionWorker.EndpointLeft> | null;
@@ -173,44 +180,96 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
 
   async loadExtension(extensionIdentifier: extensionIdentifier): Promise<boolean> {
 
-    //Early return if the extension is already loaded
-    //TODO: Rework
-    //if (this.#extensionIdentifierControllerIdentifier.has(extensionIdentifier)) return false;
+    //Early return if the extension is
+    //1: undefined
+    //2: in quarantine
+    //3: already loaded
+    const extension = this.#extensions.get(extensionIdentifier);
+    if (extension === undefined || extension.state === "quarantine" || extension.state === "active") return false;
 
-    //This might fails because of the path just so you know Amer
-    const worker = new Worker(new URL("./extension-worker", import.meta.url), { type: "module" });
 
-    const controller = new ExtensionWorkerController(worker);
+    //Important, this worker cant have type: module because we use importScripts
+    const worker = new Worker(new URL("./extension-worker", import.meta.url));
+
+    //Create an endpoint for the worker
     const endpointRight = new EndpointRight(this as ExtensionHost);
+
+    //Expose that endpoint
+    Comlink.expose(endpointRight, worker);
+    sendExposed(worker);
+
+    //Await till the worker has exposed all it has
+    await awaitExposed(worker);
+
+    //Wrap the workers left endpoint
+    const extensionWorkerEndpoint = Comlink.wrap<ExtensionWorker.EndpointLeft>(worker);
+
+    //Directly utilize the endpoint and load the extension
+    const loadedExtension = await extensionWorkerEndpoint.loadExtenion(extension.entrypoint);
+
+    //If the operation failed, terminate the worker and return false
+    if (!loadedExtension) {
+      //If the extension was not loaded, kill the web worker
+      worker.terminate();
+      //And return false
+      return false;
+    };
+
+    //Else we go ahead
+
+    //The extension is now active
+    extension.state = "active";
+
+    //We create a controller and safe the worker as well as the extensionWorkerEndpoint
+    const controller = new ExtensionWorkerController(worker, extensionWorkerEndpoint);
 
     //Saving cross identifier references
     controller.endpointRightIdentifier = endpointRight.identifier;
     endpointRight.extensionWorkerControllerIdentifier = controller.identifier;
 
+    controller.extensionIdentifier = extension.identifier;
+    extension.extensionWorkerControllerIdentifier = controller.identifier;
+
+    //We add the controller and the endpoint we created to their own Maps
     this.#extensionWorkerControllers.set(controller.identifier, controller);
     this.#extensionWorkerEndpoints.set(endpointRight.identifier, endpointRight);
-
-    Comlink.expose(endpointRight, worker);
-    sendExposed(worker);
 
     return true;
   }
 
-  unloadExtension(extensionIdentifier: extensionIdentifier): boolean {
-    //TODO: Rework
+  //Praying that nothing fails while removing an Extension
+  async unloadExtension(extensionIdentifier: extensionIdentifier): Promise<boolean> {
+    //Early return if the extension is
+    //1: undefined
+    //2: there is no extensionWorkerControllerIdentifier
+    //3: in quarantine
+    //4: or dormant
+    const extension = this.#extensions.get(extensionIdentifier);
+    if (extension === undefined || extension.extensionWorkerControllerIdentifier === null ||
+      extension.state === "quarantine" || extension.state === "dormant") return false;
 
-    // const extensionWorkerControllerIdentifier = this.#extensionIdentifierControllerIdentifier.get(extensionIdentifier);
-    // if (extensionWorkerControllerIdentifier === undefined) return false;
-    //
-    // const controller = this.#extensionWorkerControllers.get(extensionWorkerControllerIdentifier);
-    // if (controller === undefined || controller.endpointRightIdentifier === undefined) return false;
-    //
-    // if (!this.#extensionWorkerEndpoints.delete(controller.endpointRightIdentifier)) return false;
-    //
-    // controller.worker!.terminate();
-    // controller.worker = null;
-    //
-    // if (!this.#extensionWorkerControllers.delete(controller.identifier)) return false;
+    //Get the controller associated with the extension
+    const controller = this.#extensionWorkerControllers.get(extension.extensionWorkerControllerIdentifier);
+    //Check if it is actually valid and if there is an endpointRightIdentifier (which there should be)
+    if (controller === undefined || controller.endpointRightIdentifier === undefined) return false;
+
+    //Let the extension know it is being shut down
+    await controller.extensionWorkerEndpoint.unloadExtension();
+
+    //Kill the web worker
+    controller.worker!.terminate();
+    controller.worker = null;
+
+    //Change the extensions state to dormant
+    extension.state = "dormant";
+    //And remove the reference to the ExtensionWorkerController
+    extension.extensionWorkerControllerIdentifier = null;
+
+    //Delete the endpoint that we exposed to the web worker
+    if (!this.#extensionWorkerEndpoints.delete(controller.endpointRightIdentifier)) return false;
+
+    //Delete the actual controller
+    if (!this.#extensionWorkerControllers.delete(controller.identifier)) return false;
     return true;
   }
 
@@ -326,11 +385,11 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
           manifest.identifier(),
           pluginPath,
           manifest,
+          entrypoint,
+          icon,
           "unknown",
           "dormant",
           blake3,
-          entrypoint,
-          icon,
           uiMap
         );
 
@@ -374,5 +433,6 @@ function mergeUint8Arrays(...arrays: Uint8Array[]): Uint8Array {
 await awaitExposed(self);
 const { endpoint, sdk } = Comlink.wrap<ExtensionService.IExposeRight>(self);
 const extensionHost = new ExtensionHost(endpoint, sdk);
+
 Comlink.expose(extensionHost.endpointLeft, self);
 sendExposed(self);

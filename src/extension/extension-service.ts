@@ -54,7 +54,7 @@ class ExtensionHostController {
   //of that state management exposing the interface would make
   //for some ugly optional function parameters that we hide with 
   //the class. Any input would be ignored anyways but still.
-  extensionHostEndpoint: Comlink.Remote<ExtensionHost.EndpointLeft> | null;
+  extensionHostEndpoint: Comlink.Remote<ExtensionHost.EndpointLeft>;
   #endpointRightIdentifier: endpointRightIdentifier | undefined;
 
   constructor(worker: Worker, extensionHostEndpoint: Comlink.Remote<ExtensionHost.EndpointLeft>) {
@@ -93,8 +93,7 @@ interface IEndpointRight {
 export type endpointRightIdentifier = number;
 
 class EndpointLeft implements IEndpointLeft {
-
-  //Cause there should only be one single instance of an EndpointLeft,
+  //Because there should only be one single instance of an EndpointLeft,
   //there is no need for any identifier.
   #extensionService: ExtensionService;
   constructor(extensionService: ExtensionService) {
@@ -409,12 +408,13 @@ export class ExtensionService implements IEndpointLeft, IEndpointRight {
     //Remove all created IFrames and with it all the event listeners
     this.#removeIFrames(controller);
 
-    //Remove the endpoint from our endpoint registry
-    if (!this.#exposedExtensionServiceEndpoints.delete(controller.endpointRightIdentifier)) return false;
-
     //Terminate the worker and set our reference to null for the GC
     controller.worker!.terminate();
     controller.worker = null;
+
+    //Remove the endpoint from our endpoint registry
+    if (!this.#exposedExtensionServiceEndpoints.delete(controller.endpointRightIdentifier)) return false;
+
 
     //Remove the controller from our controllers registry
     if (!this.#extensionHostControllers.delete(controller.identifier)) return false;
