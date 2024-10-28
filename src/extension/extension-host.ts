@@ -188,8 +188,8 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
     if (extension === undefined || extension.state === "quarantine" || extension.state === "active") return false;
 
 
-    //Important, this worker cant have type: module because we use importScripts
-    const worker = new Worker(new URL("./extension-worker", import.meta.url));
+    //All extensions have to adhere to the ES Module format
+    const worker = new Worker(new URL("./extension-worker.ts", import.meta.url), { type: "module" });
 
     //Create an endpoint for the worker
     const endpointRight = new EndpointRight(this as ExtensionHost);
@@ -205,10 +205,10 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
     const extensionWorkerEndpoint = Comlink.wrap<ExtensionWorker.EndpointLeft>(worker);
 
     //Directly utilize the endpoint and load the extension
-    const loadedExtension = await extensionWorkerEndpoint.loadExtenion(extension.entrypoint);
+    const didExtensionLoad = await extensionWorkerEndpoint.loadExtenion(extension.entrypoint);
 
     //If the operation failed, terminate the worker and return false
-    if (!loadedExtension) {
+    if (!didExtensionLoad) {
       //If the extension was not loaded, kill the web worker
       worker.terminate();
       //And return false

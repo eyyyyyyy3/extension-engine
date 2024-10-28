@@ -4,12 +4,18 @@ import "./App.css";
 
 import { ExtensionService } from "./extension/extension-service";
 
+async function love() {
+  const extensionService = new ExtensionService();
+  const extensionServiceL = extensionService.endpointLeft;
+  const extensionHostControllerIdentifier = await extensionServiceL.loadExtensionHost();
+  await extensionServiceL.loadExtension("vici.first", extensionHostControllerIdentifier);
+  // await extensionServiceL.unloadExtension("vici.first", extensionHostControllerIdentifier);
+}
+
 function App() {
   const [name, setName] = useState("");
 
-  const extensionService = new ExtensionService();
-  const extensionServiceL = extensionService.endpointLeft;
-  const extensionHostControllerIdentifier = extensionServiceL.loadExtensionHost().then((data) => console.log(data));
+  love();
 
 
   return (

@@ -106,6 +106,7 @@ export class Manifest implements IManifest {
     return this.#parsedData.autoLoad;
   }
   ui(): Record<string, string> | undefined {
+    //TODO: Sanitize the so that no path traversal is possible
     return this.#parsedData.ui;
   }
   developmentKey(): string | undefined {

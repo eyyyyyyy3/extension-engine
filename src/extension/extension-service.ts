@@ -78,6 +78,10 @@ class ExtensionHostController {
 interface IEndpointLeft {
   loadExtensionHost(): Promise<extensionHostControllerIdentifier>;
   unloadExtensionHost(extensionHostControllerIdentifier: extensionHostControllerIdentifier): boolean;
+  //availableExtensions(extensionHostControllerIdentifier: extensionHostControllerIdentifier): ;
+  //loadedExtensions(extensionHostControllerIdentifier: extensionHostControllerIdentifier);
+  loadExtension(extensionIdentifier: string, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean>;
+  unloadExtension(extensionIdentifier: string, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean>;
   status(): void;
 }
 
@@ -107,6 +111,16 @@ class EndpointLeft implements IEndpointLeft {
   unloadExtensionHost(extensionHostControllerIdentifier: extensionHostControllerIdentifier): boolean {
     return this.#extensionService.unloadExtensionHost(extensionHostControllerIdentifier);
   }
+
+  loadExtension(extensionIdentifier: string, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
+    return this.#extensionService.loadExtension(extensionIdentifier, extensionHostControllerIdentifier);
+  }
+
+  unloadExtension(extensionIdentifier: string, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
+    return this.#extensionService.unloadExtension(extensionIdentifier, extensionHostControllerIdentifier);
+
+  }
+
   status(): void {
     this.#extensionService.status();
   }
@@ -231,7 +245,7 @@ export class ExtensionService implements IEndpointLeft, IEndpointRight {
     try {
       this.#app?.append(iFrame);
     } catch (error) {
-      console.error("Could not append IFrame to the app: ", error);
+      console.error(`[EXTENSION-SERVICE] ${error}`);
       return null;
     }
     extensionHostController.iFrameControllers.set(iFrameController.identifier, iFrameController);
@@ -419,6 +433,21 @@ export class ExtensionService implements IEndpointLeft, IEndpointRight {
     //Remove the controller from our controllers registry
     if (!this.#extensionHostControllers.delete(controller.identifier)) return false;
     return true;
+  }
+
+  async loadExtension(extensionIdentifier: string, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
+    const controller = this.#extensionHostControllers.get(extensionHostControllerIdentifier);
+    if (controller === undefined) return false;
+
+    return controller.extensionHostEndpoint.loadExtension(extensionIdentifier);
+
+  }
+
+  async unloadExtension(extensionIdentifier: string, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
+    const controller = this.#extensionHostControllers.get(extensionHostControllerIdentifier);
+    if (controller === undefined) return false;
+
+    return controller.extensionHostEndpoint.unloadExtension(extensionIdentifier);
   }
 
 
