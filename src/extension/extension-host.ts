@@ -221,58 +221,90 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
       return;
     }
 
+    //Read all the entries inside of the plugin dir
     const pluginDirectories = await this.#sdk.readDir("./plugins");
 
-    //Labeled loop cause we want to skip the current plugin even when in some nested loop
+    //Iterate over all entries inside of ./plugins
     for (const directory of pluginDirectories) {
       //If error then continue to the next entry
       try {
+        //If it is not a directory skip to the next entry
         if (!directory.isDirectory) continue;
 
         //The current plugins path
         const pluginPath = "./plugins/".concat(directory.name, "/");
 
+        //The path to the plugin manifest
         const manifestPath = pluginPath.concat("manifest.json");
+        //Check if the manifest actually exists
         if (!await this.#sdk.exists(manifestPath)) continue;
 
+        //Create a textDecoder, to decode the manifest which is in an Uint8Array format
+        //to a string representation
         const textDecoder = new TextDecoder();
-        //transform the raw u8 bytes to text and then parse it to a JSON object
+        //Transform the raw u8 bytes to text and then parse it to a JSON object
         const rawManifest = await this.#sdk.readFile(manifestPath);
         const jsonManifestString = textDecoder.decode(rawManifest);
         const jsonManifest = JSON.parse(jsonManifestString);
+
+        //Check the validity of the JSON manifest based on our manifest format
         const manifest = parseManifest(jsonManifest);
         if (manifest === null) continue;
 
+        //Now we know what the entrypoint is called, so we check if it exists
         const entrypointPath = pluginPath.concat(manifest.entrypoint());
+        //Skip this plugin if there is no actual entrypoint file
         if (!await this.#sdk.exists(entrypointPath)) continue;
 
+        //Now we know what the icon is called, so we check if it exists
         const iconPath = pluginPath.concat(manifest.icon());
+        //Skip this plugin if there is no actual icon file
         if (!await this.#sdk.exists(iconPath)) continue;
 
+        //Read the entrypoint file
         const rawEntrypoint: Uint8Array = await this.#sdk.readFile(entrypointPath);
+        //Create a File which is of type javascript
         const entrypoint = new File([rawEntrypoint], "entrypoint", { type: "text/javascript" });
 
+        //Read the icon file
         const rawIcon = await this.#sdk.readFile(iconPath);
+        //Create a File which is of type png
         const icon = new File([rawIcon], "icon", { type: "image/png" });
 
         //Grab all the ui files
         const uiRecord = manifest.ui();
 
+        //Later on all the ui files will be stored in here with their
+        //key as their identifier which is defined in the manifest
         let uiMap: Map<string, File> | undefined;
+
+        //We also save the raw UI data because we are going to hash it
         let rawUIArray: Uint8Array[] = [];
 
+        //If the UI record has entries we are going to process them
         if (uiRecord !== undefined) {
+          //If there are some entries create a new Map
           uiMap = new Map<string, File>();
 
+          //Iterate over all the keys of the UI object
           for (const key in uiRecord) {
+            //Grab the value of the thang
             if (uiRecord.hasOwnProperty(key)) {
+              //Specify the path of the current UI file
               const uiPath = pluginPath.concat(uiRecord[key]);
 
-              if (!await this.#sdk.exists(uiPath))
+              //Now we know what the entrypoint is called, so we check if it exists
+              if (!await this.#sdk.exists(uiPath)) {
+                //It does not exist so we throw an Error and the catch clause will catch it and 
+                //continue to the next plugin
                 throw new Error(`[MANIFEST] ${uiPath} not found! Make sure it exists!`);
+              }
 
+              //Read the ui file
               const rawUI = await this.#sdk.readFile(uiPath);
+              //Create a File which is of type html
               const ui = new File([rawUI], key, { type: "text/html" });
+              //Insert it into our Map
               uiMap.set(key, ui);
 
               rawUIArray.push(rawUI);
@@ -280,13 +312,15 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
           }
         }
 
+        //Merge all the raw data for the blake3 hash. (order is important)
         const hashData = mergeUint8Arrays(rawManifest, rawEntrypoint, rawIcon, ...rawUIArray);
 
+        //Compute the blake3 hash
         const blake3 = await this.#sdk.blake3(hashData);
 
-        //TODO: Continue here
 
-        //TODO: Classification & state & numericIdentifier
+        //TODO: Create a DB table for the extensions and continue to implement the
+        //flow chart here
 
         const extension = new Extension(
           manifest.identifier(),
@@ -300,11 +334,16 @@ class ExtensionHost implements IEndpointLeft, IEndpointRight {
           uiMap
         );
 
-        //TODO: Additional checks if the plugin is already loaded. Currently if there
-        //are two extensions with the same identifier the newer one will overwrite
+        //Check if the extension has already been loaded, if yes skip it
+        if (this.#extensions.has(extension.identifier)) continue;
+
+        //Insert the Extension into our Map
         this.#extensions.set(extension.identifier, extension);
+
       } catch (error) {
+        //Catch any error and print it
         console.error(error);
+        //Continue with the next entry in our directory
         continue;
       }
     }
