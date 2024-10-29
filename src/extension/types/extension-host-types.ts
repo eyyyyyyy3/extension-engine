@@ -1,5 +1,6 @@
+import { endpointRightIdentifier, extensionIdentifier, spaceIdentifier, uiIdentifier, zoneIdentifier } from "./extension-types";
+
 export type extensionWorkerControllerIdentifier = number;
-export type extensionIdentifier = string;
 
 export namespace NSExtensionHost {
 
@@ -13,7 +14,7 @@ export namespace NSExtensionHost {
   }
 
   export interface IEndpointRight {
-    // registerUI(html: string, extensionWorkerController?: ExtensionWorkerController): UIEndpoint;
-
+    registerUI(uiIdentifier: uiIdentifier, space: spaceIdentifier, zone: zoneIdentifier, listener: (data: any) => any, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean>;
+    removeUI(uiIdentifier: uiIdentifier, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean>;
   }
 }

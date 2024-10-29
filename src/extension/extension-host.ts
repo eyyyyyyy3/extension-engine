@@ -7,7 +7,7 @@ import * as V1 from "./manifest/v1";
 import { parseManifest } from "./manifest";
 
 import { ASDK } from "../sdk/abstracts/sdk";
-import { NSExtensionHost, endpointRightIdentifier, extensionIdentifier, extensionWorkerControllerIdentifier } from "./types";
+import { NSExtensionHost, endpointRightIdentifier, eventControllerIdentifier, extensionIdentifier, extensionWorkerControllerIdentifier, iFrameControllerIdentifier, iFrameLocation, spaceIdentifier, spaceZoneLocation, uiIdentifier, zoneIdentifier } from "./types";
 
 
 // interface IUIEndpoint {
@@ -24,7 +24,7 @@ export class Extension {
   manifest: V1.Manifest;
   entrypoint: File;
   icon: File;
-  ui: Map<string, File> | undefined;
+  ui: Map<uiIdentifier, File> | undefined;
   classification: string; //official, development, malicious, unknown
   state: string; //dormant, active, quarantine
   blake3: Uint8Array;
@@ -32,7 +32,7 @@ export class Extension {
   extensionWorkerControllerIdentifier: extensionWorkerControllerIdentifier | null;
   constructor(identifier: extensionIdentifier, location: string, manifest: V1.Manifest,
     entrypoint: File, icon: File, classification: string, state: string, blake3: Uint8Array,
-    ui?: Map<string, File>, numericIdentifier?: number) {
+    ui?: Map<uiIdentifier, File>, numericIdentifier?: number) {
     this.identifier = identifier;
     this.location = location;
     this.manifest = manifest;
@@ -96,11 +96,33 @@ export class EndpointRight implements NSExtensionHost.IEndpointRight {
     if (this.#extensionWorkerControllerIdentifier !== undefined) return;
     this.#extensionWorkerControllerIdentifier = extensionWorkerControllerIdentifier;
   }
+
+  registerUI(uiIdentifier: uiIdentifier, space: spaceIdentifier, zone: zoneIdentifier, listener: (data: any) => any): Promise<boolean> {
+    return this.#extensionHost.registerUI(uiIdentifier, space, zone, listener, this.#identifier);
+  }
+
+  removeUI(uiIdentifier: uiIdentifier): Promise<boolean> {
+    return this.#extensionHost.removeUI(uiIdentifier, this.#identifier);
+  }
+
+}
+
+class UIController {
+  identifier: uiIdentifier;
+  iFrameControllerIdentifier: iFrameControllerIdentifier;
+  eventControllerIdentifier: eventControllerIdentifier;
+  constructor(uiIdentifier: uiIdentifier, iFrameControllerIdentifier: iFrameControllerIdentifier, eventControllerIdentifier: eventControllerIdentifier) {
+    this.identifier = uiIdentifier;
+    this.iFrameControllerIdentifier = iFrameControllerIdentifier;
+    this.eventControllerIdentifier = eventControllerIdentifier;
+  }
 }
 
 class ExtensionWorkerController {
   static #currentIdentifier: extensionWorkerControllerIdentifier = 0;
   identifier: extensionWorkerControllerIdentifier;
+  uiControllers: Map<uiIdentifier, UIController>;
+
   worker: Worker | null;
   endpointRightIdentifier: endpointRightIdentifier | undefined;
   extensionIdentifier: extensionIdentifier | undefined;
@@ -109,6 +131,9 @@ class ExtensionWorkerController {
   constructor(worker: Worker, extensionWorkerEndpoint: Comlink.Remote<ExtensionWorker.EndpointLeft>) {
     this.identifier = ExtensionWorkerController.#currentIdentifier;
     ExtensionWorkerController.#currentIdentifier += 1;
+
+    this.uiControllers = new Map<uiIdentifier, UIController>();
+
     this.worker = worker;
     this.extensionWorkerEndpoint = extensionWorkerEndpoint;
   }
@@ -297,7 +322,7 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
 
         //Later on all the ui files will be stored in here with their
         //key as their identifier which is defined in the manifest
-        let uiMap: Map<string, File> | undefined;
+        let uiMap: Map<uiIdentifier, File> | undefined;
 
         //We also save the raw UI data because we are going to hash it
         let rawUIArray: Uint8Array[] = [];
@@ -305,7 +330,7 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
         //If the UI record has entries we are going to process them
         if (uiRecord !== undefined) {
           //If there are some entries create a new Map
-          uiMap = new Map<string, File>();
+          uiMap = new Map<uiIdentifier, File>();
 
           //Iterate over all the keys of the UI object
           for (const key in uiRecord) {
@@ -369,6 +394,89 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
       }
     }
     console.log(this.#extensions);
+  }
+
+  async registerUI(uiIdentifier: uiIdentifier, space: spaceIdentifier, zone: zoneIdentifier, listener: (data: any) => any, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
+    //There should be an endpointRightIdentifier
+    if (endpointRightIdentifier === undefined) return false;
+
+    //Get the endpoint from our Map
+    const endpoint = this.#extensionWorkerEndpoints.get(endpointRightIdentifier);
+    //Check if it exists and check if the extensionWorkerControllerIdentifier exists
+    if (endpoint === undefined || endpoint.extensionWorkerControllerIdentifier === undefined) return false;
+
+    //Get the extensionWorkerController
+    const extensionWorkerController = this.#extensionWorkerControllers.get(endpoint.extensionWorkerControllerIdentifier);
+    //Check if it exists
+    if (!extensionWorkerController) return false;
+
+    //Check if the ui is already loaded and if it is return false
+    if (extensionWorkerController.uiControllers.has(uiIdentifier)) return false;
+
+    //The failing of this should actually be impossible
+    if (extensionWorkerController.extensionIdentifier === undefined) return false;
+
+    //Get the extension from our Map
+    const extension = this.#extensions.get(extensionWorkerController.extensionIdentifier);
+    //Check if it exists
+    if (extension === undefined) return false;
+
+    //Check if there are any ui files registered for this extension
+    if (extension.ui === undefined) return false;
+
+    //Get the ui file that we defined with our uiIdentifier
+    const ui = extension.ui.get(uiIdentifier);
+    //Check if it exists
+    if (ui === undefined) return false;
+
+    //TODO: Get the space and zones via the extensionServiceEndpointRight and check before registering an IFrame
+    const spaceZoneLocation: spaceZoneLocation = [space, zone];
+
+    //Register the IFrame with our ui file and the spaceZoneLocation
+    const iFrameControllerIdentifier = await this.#extensionServiceEndpointRight.registerIFrame(ui, spaceZoneLocation);
+    if (iFrameControllerIdentifier === null) return false;
+
+    //Register the listener to our newly created IFrame
+    const eventControllerIdentifier = await this.#extensionServiceEndpointRight.addEventListener(iFrameControllerIdentifier, listener);
+    //TODO: if this fails I should actually remove the created IFrame
+    if (eventControllerIdentifier === null) return false;
+
+    //Create an uiController which holds the iFrameControllerIdentifier and eventControllerIdentifier
+    const uiController = new UIController(uiIdentifier, iFrameControllerIdentifier, eventControllerIdentifier);
+
+    //Save it to the extensionWorkerController's specific uiControllers Map. We checked before
+    //if the Map has any entry with the provided uiIdentifier so it is safe to set/insert here
+    extensionWorkerController.uiControllers.set(uiController.identifier, uiController);
+    //We are done
+    return true;
+  }
+
+  async removeUI(uiIdentifier: uiIdentifier, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
+    //There should be an endpointRightIdentifier
+    if (endpointRightIdentifier === undefined) return false;
+
+    //Get the endpoint from our Map
+    const endpoint = this.#extensionWorkerEndpoints.get(endpointRightIdentifier);
+    //Check if it exists and check if the extensionWorkerControllerIdentifier exists
+    if (endpoint === undefined || endpoint.extensionWorkerControllerIdentifier === undefined) return false;
+
+    //Get the extensionWorkerController
+    const extensionWorkerController = this.#extensionWorkerControllers.get(endpoint.extensionWorkerControllerIdentifier);
+    //Check if it exists
+    if (!extensionWorkerController) return false;
+
+    //Get the UIController from our extensionWorkerController's uiControllers Map
+    const uiController = extensionWorkerController.uiControllers.get(uiIdentifier);
+    //Check if it exists and if it does not return false as this means that there is not any UI
+    //loaded with that identifier
+    if (uiController === undefined) return false;
+
+
+    //Remove the created IFrame (and with it all its listeners);
+    if (!await this.#extensionServiceEndpointRight.removeIFrame(uiController.iFrameControllerIdentifier)) return false;
+
+    //Remove the uiController from our extensionWorkerController's uiControllers Map and return that result
+    return extensionWorkerController.uiControllers.delete(uiController.identifier);
   }
 
 }
