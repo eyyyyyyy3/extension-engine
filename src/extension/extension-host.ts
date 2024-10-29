@@ -7,9 +7,7 @@ import * as V1 from "./manifest/v1";
 import { parseManifest } from "./manifest";
 
 import { ASDK } from "../sdk/abstracts/sdk";
-import { exists } from "@tauri-apps/plugin-fs";
-import { optional } from "zod";
-import { endpointRightIdentifier, extensionIdentifier, extensionWorkerControllerIdentifier } from "./types";
+import { NSExtensionHost, endpointRightIdentifier, extensionIdentifier, extensionWorkerControllerIdentifier } from "./types";
 
 
 // interface IUIEndpoint {
@@ -50,21 +48,8 @@ export class Extension {
 
 }
 
-interface IEndpointLeft {
-  //Add more ways of loading an Extension for example from a Server.
-  //Also, because the Identifier of an extension has to be unique globally, we can just go by the extensionIdentifier;
-  loadExtension(extensionIdentifier: extensionIdentifier): Promise<boolean>;
-  unloadExtension(extensionIdentifier: extensionIdentifier): Promise<boolean>;
-  //forceUnloadExtension
-  resolveExtensions(): Promise<void>;
-}
 
-interface IEndpointRight {
-  // registerUI(html: string, extensionWorkerController?: ExtensionWorkerController): UIEndpoint;
-
-}
-
-export class EndpointLeft implements IEndpointLeft {
+export class EndpointLeft implements NSExtensionHost.IEndpointLeft {
   //Because there should only be one single instance of an EndpointLeft,
   //there is no need for any identifier.
   #extensionHost: ExtensionHost;
@@ -86,7 +71,7 @@ export class EndpointLeft implements IEndpointLeft {
   }
 }
 
-export class EndpointRight implements IEndpointRight {
+export class EndpointRight implements NSExtensionHost.IEndpointRight {
   static #currentIdentifier: endpointRightIdentifier = 0;
   #identifier: endpointRightIdentifier;
   #extensionHost: ExtensionHost;
@@ -117,8 +102,8 @@ class ExtensionWorkerController {
   static #currentIdentifier: extensionWorkerControllerIdentifier = 0;
   identifier: extensionWorkerControllerIdentifier;
   worker: Worker | null;
-  #endpointRightIdentifier: endpointRightIdentifier | undefined;
-  #extensionIdentifier: extensionIdentifier | undefined;
+  endpointRightIdentifier: endpointRightIdentifier | undefined;
+  extensionIdentifier: extensionIdentifier | undefined;
   extensionWorkerEndpoint: Comlink.Remote<ExtensionWorker.EndpointLeft>;
 
   constructor(worker: Worker, extensionWorkerEndpoint: Comlink.Remote<ExtensionWorker.EndpointLeft>) {
@@ -127,29 +112,9 @@ class ExtensionWorkerController {
     this.worker = worker;
     this.extensionWorkerEndpoint = extensionWorkerEndpoint;
   }
-
-  get endpointRightIdentifier(): endpointRightIdentifier | undefined {
-    return this.#endpointRightIdentifier;
-  }
-
-  set endpointRightIdentifier(endpointRightIdentifier: endpointRightIdentifier) {
-    if (this.#endpointRightIdentifier !== undefined) return;
-    this.#endpointRightIdentifier = endpointRightIdentifier;
-  }
-
-  get extensionIdentifier(): extensionIdentifier | undefined {
-    return this.#extensionIdentifier;
-  }
-
-  set extensionIdentifier(extensionIdentifier: extensionIdentifier) {
-    if (this.#extensionIdentifier !== undefined) return;
-    this.#extensionIdentifier = extensionIdentifier;
-  }
-
-  //extensionWorkerEndpoint: Comlink.Remote<ExtensionWorker.EndpointLeft> | null;
 }
 
-class ExtensionHost implements IEndpointLeft, IEndpointRight {
+class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IEndpointRight {
   #extensionWorkerEndpoints: Map<endpointRightIdentifier, EndpointRight>;
   #extensionWorkerControllers: Map<extensionWorkerControllerIdentifier, ExtensionWorkerController>;
   #extensions: Map<extensionIdentifier, Extension>;

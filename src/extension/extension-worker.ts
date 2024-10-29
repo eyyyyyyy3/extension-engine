@@ -1,18 +1,11 @@
 import * as Comlink from "comlink";
 import * as ExtensionHost from "./extension-host";
 import { sendExposed, awaitExposed } from "./comlink-helper";
+import { NSExtensionWorker } from "./types";
 
 
-interface IEndpointLeft {
-  loadExtenion(entrypoint: File): Promise<boolean>;
-  unloadExtension(): void;
-}
 
-interface IEndpointRight {
-  //loadUI(key: string): someHandler;
-}
-
-export class EndpointLeft implements IEndpointLeft {
+export class EndpointLeft implements NSExtensionWorker.IEndpointLeft {
   //Because there should only be one single instance of an EndpointLeft,
   //there is no need for any identifier.
 
@@ -31,7 +24,7 @@ export class EndpointLeft implements IEndpointLeft {
 
 }
 
-class EndpointRight implements IEndpointRight {
+class EndpointRight implements NSExtensionWorker.IEndpointRight {
   #extensionWorker: ExtensionWorker;
   constructor(extensionWorker: ExtensionWorker) {
     this.#extensionWorker = extensionWorker;
@@ -39,7 +32,7 @@ class EndpointRight implements IEndpointRight {
 
 }
 
-class ExtensionWorker implements IEndpointLeft, IEndpointRight {
+class ExtensionWorker implements NSExtensionWorker.IEndpointLeft, NSExtensionWorker.IEndpointRight {
   #extensionHostEndpointRight: Comlink.Remote<ExtensionHost.EndpointRight>;
   #endpointLeft: EndpointLeft;
   #extension: any;

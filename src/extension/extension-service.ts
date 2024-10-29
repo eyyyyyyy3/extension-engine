@@ -3,7 +3,7 @@ import { sendExposed, awaitExposed } from "./comlink-helper";
 import * as ExtensionHost from "./extension-host";
 import { acquireSDK } from "../sdk";
 import { ASDK } from "../sdk/abstracts/sdk";
-import { endpointRightIdentifier, eventControllerIdentifier, extensionHostControllerIdentifier, iFrameControllerIdentifier } from "./types";
+import { NSExtensionService, endpointRightIdentifier, eventControllerIdentifier, extensionHostControllerIdentifier, iFrameControllerIdentifier } from "./types";
 
 class EventController {
   static #currentIdentifier: eventControllerIdentifier = 0;
@@ -53,7 +53,7 @@ class ExtensionHostController {
   //for some ugly optional function parameters that we hide with 
   //the class. Any input would be ignored anyways but still.
   extensionHostEndpoint: Comlink.Remote<ExtensionHost.EndpointLeft>;
-  #endpointRightIdentifier: endpointRightIdentifier | undefined;
+  endpointRightIdentifier: endpointRightIdentifier | undefined;
 
   constructor(worker: Worker, extensionHostEndpoint: Comlink.Remote<ExtensionHost.EndpointLeft>) {
     this.identifier = ExtensionHostController.#currentIdentifier;
@@ -62,38 +62,11 @@ class ExtensionHostController {
     this.worker = worker;
     this.extensionHostEndpoint = extensionHostEndpoint;
   }
-
-  get endpointRightIdentifier(): endpointRightIdentifier | undefined {
-    return this.#endpointRightIdentifier;
-  }
-
-  set endpointRightIdentifier(endpointRightIdentifier: endpointRightIdentifier) {
-    if (this.#endpointRightIdentifier !== undefined) return;
-    this.#endpointRightIdentifier = endpointRightIdentifier;
-  }
-}
-
-interface IEndpointLeft {
-  loadExtensionHost(): Promise<extensionHostControllerIdentifier>;
-  unloadExtensionHost(extensionHostControllerIdentifier: extensionHostControllerIdentifier): boolean;
-  //availableExtensions(extensionHostControllerIdentifier: extensionHostControllerIdentifier): ;
-  //loadedExtensions(extensionHostControllerIdentifier: extensionHostControllerIdentifier);
-  loadExtension(extensionIdentifier: string, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean>;
-  unloadExtension(extensionIdentifier: string, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean>;
-  status(): void;
-}
-
-interface IEndpointRight {
-  createIFrame(html: string, endpointRightIdentifier?: endpointRightIdentifier): iFrameControllerIdentifier | null;
-  removeIFrame(iFrameIdentifier: string, endpointRightIdentifier?: endpointRightIdentifier): boolean;
-  removeIFrames(endpointRightIdentifier?: endpointRightIdentifier): boolean;
-  addEventListener(iFrameIdentifier: string, listener: (data: any) => any, endpointRightIdentifier?: endpointRightIdentifier): number | undefined;
-  removeEventListener(iFrameIdentifier: string, eventControllerIdentifier: eventControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean;
-  postMessage(iFrameIdentifier: string, data: any, endpointRightIdentifier?: endpointRightIdentifier): boolean;
 }
 
 
-class EndpointLeft implements IEndpointLeft {
+
+class EndpointLeft implements NSExtensionService.IEndpointLeft {
   //Because there should only be one single instance of an EndpointLeft,
   //there is no need for any identifier.
   #extensionService: ExtensionService;
@@ -124,7 +97,7 @@ class EndpointLeft implements IEndpointLeft {
 
 }
 
-export class EndpointRight implements IEndpointRight {
+export class EndpointRight implements NSExtensionService.IEndpointRight {
   static #currentIdentifier: endpointRightIdentifier = 0;
   #identifier: endpointRightIdentifier;
   #extensionService: ExtensionService;
@@ -174,7 +147,7 @@ export class EndpointRight implements IEndpointRight {
   }
 }
 
-export class ExtensionService implements IEndpointLeft, IEndpointRight {
+export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExtensionService.IEndpointRight {
   #app = document.getElementById("extension"); //TODO: change this later 
 
   //Currently because of https://github.com/tauri-apps/tauri/issues/3308#issuecomment-1025132141
