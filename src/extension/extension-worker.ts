@@ -35,10 +35,12 @@ class EndpointRight implements NSExtensionWorker.IEndpointRight {
 class ExtensionWorker implements NSExtensionWorker.IEndpointLeft, NSExtensionWorker.IEndpointRight {
   #extensionHostEndpointRight: Comlink.Remote<ExtensionHost.EndpointRight>;
   #endpointLeft: EndpointLeft;
+  #endpointRight: EndpointRight;
   #extension: any;
   constructor(extensionHostEndpointRight: Comlink.Remote<ExtensionHost.EndpointRight>) {
     this.#extensionHostEndpointRight = extensionHostEndpointRight;
     this.#endpointLeft = new EndpointLeft(this as ExtensionWorker);
+    this.#endpointRight = new EndpointRight(this as ExtensionWorker);
 
     this.#extension = null;
   }
@@ -61,7 +63,7 @@ class ExtensionWorker implements NSExtensionWorker.IEndpointLeft, NSExtensionWor
       //Calling the initialize function and if it does not exist
       //we return with an error and the whole worker gets unloaded
       //Initialize is expected to be synchronous
-      this.#extension.initialize();
+      this.#extension.initialize(this.#endpointRight);
       //PROFIT?!?!
       return true;
     } catch (error) {

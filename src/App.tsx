@@ -7,6 +7,8 @@ import { ExtensionService } from "./extension/extension-service";
 async function love() {
   const extensionService = new ExtensionService();
   const extensionServiceL = extensionService.endpointLeft;
+  //Something wrong with this function
+  extensionServiceL.registerSpace("main", ["extension"]);
   const extensionHostControllerIdentifier = await extensionServiceL.loadExtensionHost();
   await extensionServiceL.loadExtension("vici.first", extensionHostControllerIdentifier);
   // await extensionServiceL.unloadExtension("vici.first", extensionHostControllerIdentifier);

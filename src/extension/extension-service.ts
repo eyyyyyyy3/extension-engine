@@ -104,15 +104,15 @@ class EndpointLeft implements NSExtensionService.IEndpointLeft {
   }
 
   registerSpace(spaceIdentifier: spaceIdentifier, zoneIdentifiers?: [zoneIdentifier]): boolean {
-    return this.registerSpace(spaceIdentifier, zoneIdentifiers);
+    return this.#extensionService.registerSpace(spaceIdentifier, zoneIdentifiers);
   }
 
   registerZone(spaceIdentifier: spaceIdentifier, zoneIdentifier: zoneIdentifier): boolean {
-    return this.registerZone(spaceIdentifier, zoneIdentifier);
+    return this.#extensionService.registerZone(spaceIdentifier, zoneIdentifier);
   }
 
   loadSpace(spaceIdentifier: spaceIdentifier): boolean {
-    return this.loadSpace(spaceIdentifier);
+    return this.#extensionService.loadSpace(spaceIdentifier);
   }
 
   status(): void {

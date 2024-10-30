@@ -225,6 +225,7 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
   }
 
   //Praying that nothing fails while removing an Extension
+  //TODO: Clean up the created IFrames
   async unloadExtension(extensionIdentifier: extensionIdentifier): Promise<boolean> {
     //Early return if the extension is
     //1: undefined
