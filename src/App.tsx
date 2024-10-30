@@ -8,10 +8,11 @@ async function love() {
   const extensionService = new ExtensionService();
   const extensionServiceL = extensionService.endpointLeft;
   //Something wrong with this function
-  extensionServiceL.registerSpace("main", ["extension"]);
+  extensionServiceL.registerSpace("app", ["extension"]);
   const extensionHostControllerIdentifier = await extensionServiceL.loadExtensionHost();
   await extensionServiceL.loadExtension("vici.first", extensionHostControllerIdentifier);
-  // await extensionServiceL.unloadExtension("vici.first", extensionHostControllerIdentifier);
+  extensionServiceL.loadSpace("app");
+  await extensionServiceL.unloadExtension("vici.first", extensionHostControllerIdentifier);
 }
 
 function App() {
@@ -36,6 +37,7 @@ function App() {
           <img src={reactLogo} className="logo react" alt="React logo" />
         </a>
       </div>
+      <div id="extension"></div>
       <p>Click on the Tauri, Vite, and React logos to learn more.</p>
     </main>
   );

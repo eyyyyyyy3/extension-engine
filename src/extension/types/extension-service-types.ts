@@ -1,4 +1,4 @@
-import { endpointRightIdentifier, extensionIdentifier, spaceIdentifier, zoneIdentifier } from "./extension-types";
+import { Comlink, endpointRightIdentifier, extensionIdentifier, spaceIdentifier, zoneIdentifier } from "./extension-types";
 
 export type eventControllerIdentifier = number;
 export type iFrameControllerIdentifier = string;
@@ -30,7 +30,7 @@ export namespace NSExtensionService {
     registerIFrame(ui: File, spaceZoneLocation: spaceZoneLocation, endpointRightIdentifier?: endpointRightIdentifier): iFrameControllerIdentifier | null;
     removeIFrame(iFrameControllerIdentifier: iFrameControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean;
     removeIFrames(endpointRightIdentifier?: endpointRightIdentifier): boolean;
-    addEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, listener: (data: any) => any, endpointRightIdentifier?: endpointRightIdentifier): eventControllerIdentifier | null;
+    addEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): eventControllerIdentifier | null;
     removeEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventControllerIdentifier: eventControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean;
     postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, data: any, endpointRightIdentifier?: endpointRightIdentifier): boolean;
   }

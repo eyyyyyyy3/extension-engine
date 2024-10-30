@@ -7,16 +7,8 @@ import * as V1 from "./manifest/v1";
 import { parseManifest } from "./manifest";
 
 import { ASDK } from "../sdk/abstracts/sdk";
-import { NSExtensionHost, endpointRightIdentifier, eventControllerIdentifier, extensionIdentifier, extensionWorkerControllerIdentifier, iFrameControllerIdentifier, iFrameLocation, spaceIdentifier, spaceZoneLocation, uiIdentifier, zoneIdentifier } from "./types";
+import { NSExtensionHost, endpointRightIdentifier, eventControllerIdentifier, extensionIdentifier, extensionState, extensionWorkerControllerIdentifier, iFrameControllerIdentifier, iFrameLocation, spaceIdentifier, spaceZoneLocation, uiIdentifier, zoneIdentifier } from "./types";
 
-
-// interface IUIEndpoint {
-//
-// }
-//
-// class UIEndpoint implements IUIEndpoint {
-//
-// }
 
 export class Extension {
   identifier: extensionIdentifier;
@@ -26,12 +18,12 @@ export class Extension {
   icon: File;
   ui: Map<uiIdentifier, File> | undefined;
   classification: string; //official, development, malicious, unknown
-  state: string; //dormant, active, quarantine
+  state: extensionState; //dormant, active, quarantine
   blake3: Uint8Array;
   numericIdentifier: number | undefined;
   extensionWorkerControllerIdentifier: extensionWorkerControllerIdentifier | null;
   constructor(identifier: extensionIdentifier, location: string, manifest: V1.Manifest,
-    entrypoint: File, icon: File, classification: string, state: string, blake3: Uint8Array,
+    entrypoint: File, icon: File, classification: string, state: extensionState, blake3: Uint8Array,
     ui?: Map<uiIdentifier, File>, numericIdentifier?: number) {
     this.identifier = identifier;
     this.location = location;
@@ -69,6 +61,10 @@ export class EndpointLeft implements NSExtensionHost.IEndpointLeft {
   resolveExtensions(): Promise<void> {
     return this.#extensionHost.resolveExtensions();
   }
+
+  extensionState(extensionIdentifier: extensionIdentifier): Promise<extensionState | null> {
+    return this.#extensionHost.extensionState(extensionIdentifier);
+  }
 }
 
 export class EndpointRight implements NSExtensionHost.IEndpointRight {
@@ -97,7 +93,8 @@ export class EndpointRight implements NSExtensionHost.IEndpointRight {
     this.#extensionWorkerControllerIdentifier = extensionWorkerControllerIdentifier;
   }
 
-  registerUI(uiIdentifier: uiIdentifier, space: spaceIdentifier, zone: zoneIdentifier, listener: (data: any) => any): Promise<boolean> {
+  registerUI(uiIdentifier: uiIdentifier, space: spaceIdentifier, zone: zoneIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked): Promise<boolean> {
+    // const proxyListener = Comlink.proxy(listener);
     return this.#extensionHost.registerUI(uiIdentifier, space, zone, listener, this.#identifier);
   }
 
@@ -166,13 +163,14 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
   }
 
   async loadExtension(extensionIdentifier: extensionIdentifier): Promise<boolean> {
-
     //Early return if the extension is
     //1: undefined
     //2: in quarantine
     //3: already loaded
+    //4: initializing
+
     const extension = this.#extensions.get(extensionIdentifier);
-    if (extension === undefined || extension.state === "quarantine" || extension.state === "active") return false;
+    if (extension === undefined || extension.state !== "dormant") return false;
 
 
     //All extensions have to adhere to the ES Module format
@@ -204,8 +202,8 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
 
     //Else we go ahead
 
-    //The extension is now active
-    extension.state = "active";
+    //The extension is now initializing
+    extension.state = "initializing";
 
     //We create a controller and safe the worker as well as the extensionWorkerEndpoint
     const controller = new ExtensionWorkerController(worker, extensionWorkerEndpoint);
@@ -221,43 +219,57 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     this.#extensionWorkerControllers.set(controller.identifier, controller);
     this.#extensionWorkerEndpoints.set(endpointRight.identifier, endpointRight);
 
+    //After all is done and set we run the Extension.
+    //Its important to do that after everything manage wise 
+    //has been done, because if it is not done that way, the extension
+    //might call a function from the endpoint which has not yet registered the actual extension
+    await extensionWorkerEndpoint.initializeExtension();
+    extension.state = "active";
     return true;
   }
 
   //Praying that nothing fails while removing an Extension
-  //TODO: Clean up the created IFrames
   async unloadExtension(extensionIdentifier: extensionIdentifier): Promise<boolean> {
     //Early return if the extension is
     //1: undefined
     //2: there is no extensionWorkerControllerIdentifier
     //3: in quarantine
-    //4: or dormant
+    //4: dormant
+    //5: initializing
+
     const extension = this.#extensions.get(extensionIdentifier);
     if (extension === undefined || extension.extensionWorkerControllerIdentifier === null ||
-      extension.state === "quarantine" || extension.state === "dormant") return false;
+      extension.state !== "active") return false;
 
     //Get the controller associated with the extension
-    const controller = this.#extensionWorkerControllers.get(extension.extensionWorkerControllerIdentifier);
+    const extensionWorkerController = this.#extensionWorkerControllers.get(extension.extensionWorkerControllerIdentifier);
     //Check if it is actually valid and if there is an endpointRightIdentifier (which there should be)
-    if (controller === undefined || controller.endpointRightIdentifier === undefined) return false;
+    if (extensionWorkerController === undefined || extensionWorkerController.endpointRightIdentifier === undefined) return false;
 
     //Let the extension know it is being shut down
-    await controller.extensionWorkerEndpoint.unloadExtension();
+    await extensionWorkerController.extensionWorkerEndpoint.unloadExtension();
+    for (const [_, uiController] of extensionWorkerController.uiControllers) {
+      //Just deleting without checking if it worked cause we are already doing the thing
+      //Deleting the IFrame also deletes all its attached eventListeners
+      await this.#extensionServiceEndpointRight.removeIFrame(uiController.iFrameControllerIdentifier);
+    }
 
     //Kill the web worker
-    controller.worker!.terminate();
-    controller.worker = null;
+    extensionWorkerController.worker!.terminate();
+    extensionWorkerController.worker = null;
 
-    //Change the extensions state to dormant
-    extension.state = "dormant";
-    //And remove the reference to the ExtensionWorkerController
-    extension.extensionWorkerControllerIdentifier = null;
 
     //Delete the endpoint that we exposed to the web worker
-    if (!this.#extensionWorkerEndpoints.delete(controller.endpointRightIdentifier)) return false;
+    if (!this.#extensionWorkerEndpoints.delete(extensionWorkerController.endpointRightIdentifier)) return false;
 
     //Delete the actual controller
-    if (!this.#extensionWorkerControllers.delete(controller.identifier)) return false;
+    if (!this.#extensionWorkerControllers.delete(extensionWorkerController.identifier)) return false;
+
+
+    //Remove the reference to the ExtensionWorkerController
+    extension.extensionWorkerControllerIdentifier = null;
+    //Change the extensions state to dormant
+    extension.state = "dormant";
     return true;
   }
 
@@ -394,10 +406,9 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
         continue;
       }
     }
-    console.log(this.#extensions);
   }
 
-  async registerUI(uiIdentifier: uiIdentifier, space: spaceIdentifier, zone: zoneIdentifier, listener: (data: any) => any, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
+  async registerUI(uiIdentifier: uiIdentifier, space: spaceIdentifier, zone: zoneIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
     //There should be an endpointRightIdentifier
     if (endpointRightIdentifier === undefined) return false;
 
@@ -405,7 +416,6 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     const endpoint = this.#extensionWorkerEndpoints.get(endpointRightIdentifier);
     //Check if it exists and check if the extensionWorkerControllerIdentifier exists
     if (endpoint === undefined || endpoint.extensionWorkerControllerIdentifier === undefined) return false;
-
     //Get the extensionWorkerController
     const extensionWorkerController = this.#extensionWorkerControllers.get(endpoint.extensionWorkerControllerIdentifier);
     //Check if it exists
@@ -473,13 +483,18 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     if (uiController === undefined) return false;
 
 
-    //Remove the created IFrame (and with it all its listeners);
+    //Remove the created IFrame (and with it all its listeners and space registries);
     if (!await this.#extensionServiceEndpointRight.removeIFrame(uiController.iFrameControllerIdentifier)) return false;
 
     //Remove the uiController from our extensionWorkerController's uiControllers Map and return that result
     return extensionWorkerController.uiControllers.delete(uiController.identifier);
   }
 
+  async extensionState(extensionIdentifier: extensionIdentifier): Promise<extensionState | null> {
+    const extension = this.#extensions.get(extensionIdentifier);
+    if (extension === undefined || extension.state !== "dormant") return null;
+    return extension.state;
+  }
 }
 
 function mergeUint8Arrays(...arrays: Uint8Array[]): Uint8Array {

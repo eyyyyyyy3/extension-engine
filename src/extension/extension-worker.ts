@@ -1,7 +1,7 @@
 import * as Comlink from "comlink";
 import * as ExtensionHost from "./extension-host";
 import { sendExposed, awaitExposed } from "./comlink-helper";
-import { NSExtensionWorker } from "./types";
+import { NSExtensionWorker, spaceIdentifier, uiIdentifier, zoneIdentifier } from "./types";
 
 
 
@@ -18,8 +18,12 @@ export class EndpointLeft implements NSExtensionWorker.IEndpointLeft {
     return this.#extensionWorker.loadExtenion(entrypoint);
   }
 
-  unloadExtension(): void {
+  unloadExtension(): Promise<void> {
     return this.#extensionWorker.unloadExtension();
+  }
+
+  initializeExtension(): Promise<void> {
+    return this.#extensionWorker.initializeExtension();
   }
 
 }
@@ -28,6 +32,14 @@ class EndpointRight implements NSExtensionWorker.IEndpointRight {
   #extensionWorker: ExtensionWorker;
   constructor(extensionWorker: ExtensionWorker) {
     this.#extensionWorker = extensionWorker;
+  }
+
+  registerUI(uiIdentifier: uiIdentifier, space: spaceIdentifier, zone: zoneIdentifier, listener: (data: any) => any): Promise<boolean> {
+    return this.#extensionWorker.registerUI(uiIdentifier, space, zone, listener);
+  }
+
+  removeUI(uiIdentifier: uiIdentifier): Promise<boolean> {
+    return this.#extensionWorker.removeUI(uiIdentifier);
   }
 
 }
@@ -60,10 +72,7 @@ class ExtensionWorker implements NSExtensionWorker.IEndpointLeft, NSExtensionWor
       //Remove the URL as it is not needed anymore
       URL.revokeObjectURL(entrypointURL);
 
-      //Calling the initialize function and if it does not exist
-      //we return with an error and the whole worker gets unloaded
-      //Initialize is expected to be synchronous
-      this.#extension.initialize(this.#endpointRight);
+
       //PROFIT?!?!
       return true;
     } catch (error) {
@@ -72,19 +81,38 @@ class ExtensionWorker implements NSExtensionWorker.IEndpointLeft, NSExtensionWor
     }
   }
 
-  unloadExtension(): void {
+  async unloadExtension(): Promise<void> {
     const extension = this.#extension;
     if (extension === null) return;
     try {
       //Calling the terminate function and if it does not exist
       //it does not really matter as it will be unloaded anyways
       //Also terminate has to be synchronous
-      extension.terminate();
+      await extension.terminate();
     } catch (error) {
       console.error(`[EXTENSION-WORKER] ${error}`);
       return;
     }
   }
+
+  async initializeExtension(): Promise<void> {
+    //Calling the initialize function and if it does not exist
+    //we return with an error and the whole worker gets unloaded
+    //Initialize is expected to be synchronous
+    await this.#extension.initialize(this.#endpointRight);
+    return;
+  }
+
+  registerUI(uiIdentifier: uiIdentifier, space: spaceIdentifier, zone: zoneIdentifier, listener: (data: any) => any): Promise<boolean> {
+    //The function will be passed across differen workers and for the callback to work it has to be a Comlink.proxy
+    const proxyListener = Comlink.proxy(listener);
+    return this.#extensionHostEndpointRight.registerUI(uiIdentifier, space, zone, proxyListener);
+  }
+
+  removeUI(uiIdentifier: uiIdentifier): Promise<boolean> {
+    return this.#extensionHostEndpointRight.removeUI(uiIdentifier);
+  }
+
 }
 
 
