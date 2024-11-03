@@ -556,6 +556,9 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
         //Check if it exists and if it does not exist, then continue with the next iFrameLocation
         if (iFrameController === undefined) continue;
 
+        //If it has a parent node we skip appending it
+        if (iFrameController.iFrame.parentNode !== null) continue;
+
         //Try appending the iFrame to the zone
         try {
           zone.append(iFrameController.iFrame);
