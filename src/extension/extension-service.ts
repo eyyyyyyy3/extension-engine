@@ -116,6 +116,14 @@ class EndpointLeft implements NSExtensionService.IEndpointLeft {
     return this.#extensionService.loadSpace(spaceIdentifier);
   }
 
+  unloadSpace(spaceIdentifier: spaceIdentifier): boolean {
+    return this.#extensionService.unloadSpace(spaceIdentifier);
+  }
+
+  updateSpace(spaceIdentifier: spaceIdentifier): boolean {
+    return this.#extensionService.updateSpace(spaceIdentifier);
+  }
+
   status(): void {
     this.#extensionService.status();
   }
@@ -530,7 +538,8 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     return true;
   }
 
-
+  //This function loads a space.
+  //If the space is changed, unloadSpace has to be called
   loadSpace(spaceIdentifier: spaceIdentifier): boolean {
     //Get the right spaceController
     const spaceController = this.#spaceControllers.get(spaceIdentifier);
@@ -571,6 +580,100 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
 
     }
     return true;
+  }
+
+  //This function unloads the current space and it serves
+  //as a cleanup function. It has to be called if the space
+  //was loaded with loadSpace and is now being changed to another space
+  unloadSpace(spaceIdentifier: spaceIdentifier): boolean {
+    //Get the right spaceController
+    const spaceController = this.#spaceControllers.get(spaceIdentifier);
+    //Check if the spaceController exists and if not return false
+    if (spaceController === undefined) return false;
+
+    //Iterate over all the zones of the space
+    for (const [zoneIdentifier, iFrameLocations] of spaceController.zoneSet) {
+      //Grab the html element that represent the zone based on the zoneIdentifier
+      //The developers have to make sure that the zone really exists
+      const zone = document.getElementById(zoneIdentifier);
+      //If it does not exist continue with the next zone
+      if (zone === null) continue;
+      //Iterate over all the iFrameLocations
+      for (const [extensionHostControllerIdentifier, iFrameControllerIdentifier] of iFrameLocations) {
+        //Grab the extensionHostController
+        const extensionHostController = this.#extensionHostControllers.get(extensionHostControllerIdentifier);
+        //Check if it exists and if it does not exist, then continue with the next iFrameLocation
+        if (extensionHostController === undefined) continue;
+
+        //Grab the iFrameController
+        const iFrameController = extensionHostController.iFrameControllers.get(iFrameControllerIdentifier);
+        //Check if it exists and if it does not exist, then continue with the next iFrameLocation
+        if (iFrameController === undefined) continue;
+
+        //If it has NO parent node we skip removing it
+        if (iFrameController.iFrame.parentNode === null) continue;
+
+        //Try removing the iFrame from its parent (aka its specified zone)
+        try {
+          iFrameController.iFrame.parentNode.removeChild(iFrameController.iFrame);
+        } catch (error) {
+          console.error(`[EXTENSION-SERVICE] ${error}`);
+          //We do not want to return false, as there are other iFrameLocations and other zones to follow
+          continue;
+        }
+      }
+
+    }
+    return true;
+  }
+
+  //An alternative to calling load- and unloadSpace.
+  //This function lazily removes the parents of an iFrame
+  //if that iFrame should be rendered but still has a parent
+  updateSpace(spaceIdentifier: spaceIdentifier): boolean {
+    //Get the right spaceController
+    const spaceController = this.#spaceControllers.get(spaceIdentifier);
+    //Check if the spaceController exists and if not return false
+    if (spaceController === undefined) return false;
+
+    //Iterate over all the zones of the space
+    for (const [zoneIdentifier, iFrameLocations] of spaceController.zoneSet) {
+      //Grab the html element that represent the zone based on the zoneIdentifier
+      //The developers have to make sure that the zone really exists
+      const zone = document.getElementById(zoneIdentifier);
+      //If it does not exist continue with the next zone
+      if (zone === null) continue;
+      //Iterate over all the iFrameLocations
+      for (const [extensionHostControllerIdentifier, iFrameControllerIdentifier] of iFrameLocations) {
+        //Grab the extensionHostController
+        const extensionHostController = this.#extensionHostControllers.get(extensionHostControllerIdentifier);
+        //Check if it exists and if it does not exist, then continue with the next iFrameLocation
+        if (extensionHostController === undefined) continue;
+
+        //Grab the iFrameController
+        const iFrameController = extensionHostController.iFrameControllers.get(iFrameControllerIdentifier);
+        //Check if it exists and if it does not exist, then continue with the next iFrameLocation
+        if (iFrameController === undefined) continue;
+
+
+        //Try appending the iFrame to the zone
+        try {
+          //If it has a parent node we remove it
+          if (iFrameController.iFrame.parentNode !== null) {
+            iFrameController.iFrame.parentNode.removeChild(iFrameController.iFrame);
+          }
+          //And after that we try appending it to its new parent
+          zone.append(iFrameController.iFrame);
+        } catch (error) {
+          console.error(`[EXTENSION-SERVICE] ${error}`);
+          //We do not want to return false, as there are other iFrameLocations and other zones to follow
+          continue;
+        }
+      }
+
+    }
+    return true;
+
   }
 
   status(): void {

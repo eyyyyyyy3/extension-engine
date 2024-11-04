@@ -21,6 +21,8 @@ export namespace NSExtensionService {
     registerZone(spaceIdentifier: spaceIdentifier, zoneIdentifier: zoneIdentifier): boolean;
 
     loadSpace(spaceIdentifier: spaceIdentifier): boolean;
+    unloadSpace(spaceIdentifier: spaceIdentifier): boolean;
+    updateSpace(spaceIdentifier: spaceIdentifier): boolean;
 
     status(): void;
   }
