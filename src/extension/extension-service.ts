@@ -175,8 +175,8 @@ export class EndpointRight implements NSExtensionService.IEndpointRight {
     return this.#extensionService.removeEventListener(iFrameControllerIdentifier, eventControllerIdentifier, this.#identifier);
   }
 
-  postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, data: any): boolean {
-    return this.#extensionService.postMessage(iFrameControllerIdentifier, data, this.#identifier);
+  postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, message: any): boolean {
+    return this.#extensionService.postMessage(iFrameControllerIdentifier, message, this.#identifier);
   }
 }
 
@@ -407,7 +407,7 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     return iFrameController.eventControllers.delete(eventControllerIdentifier);
   }
 
-  postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, data: any, endpointRightIdentifier?: endpointRightIdentifier): boolean {
+  postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, message: any, endpointRightIdentifier?: endpointRightIdentifier): boolean {
     if (endpointRightIdentifier === undefined) return false;
 
     const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
@@ -422,7 +422,7 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
 
     const iFrame = iFrameController.iFrame;
     if (iFrame && iFrame.contentWindow && iFrame.contentDocument && iFrame.contentDocument.readyState == "complete") {
-      iFrame.contentWindow.postMessage(data);
+      iFrame.contentWindow.postMessage(message);
       return true;
     }
     return false;

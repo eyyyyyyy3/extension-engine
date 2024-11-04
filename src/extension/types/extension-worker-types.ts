@@ -11,5 +11,6 @@ export namespace NSExtensionWorker {
   export interface IEndpointRight {
     registerUI(uiIdentifier: uiIdentifier, space: spaceIdentifier, zone: zoneIdentifier, listener: (data: any) => any): Promise<boolean>;
     removeUI(uiIdentifier: uiIdentifier): Promise<boolean>;
+    postMessageUI(uiIdentifier: uiIdentifier, message: any): Promise<boolean>;
   }
 }

@@ -34,6 +34,6 @@ export namespace NSExtensionService {
     removeIFrames(endpointRightIdentifier?: endpointRightIdentifier): boolean;
     addEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): eventControllerIdentifier | null;
     removeEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventControllerIdentifier: eventControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean;
-    postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, data: any, endpointRightIdentifier?: endpointRightIdentifier): boolean;
+    postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, message: any, endpointRightIdentifier?: endpointRightIdentifier): boolean;
   }
 }

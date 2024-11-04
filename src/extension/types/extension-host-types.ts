@@ -16,5 +16,6 @@ export namespace NSExtensionHost {
   export interface IEndpointRight {
     registerUI(uiIdentifier: uiIdentifier, space: spaceIdentifier, zone: zoneIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean>;
     removeUI(uiIdentifier: uiIdentifier, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean>;
+    postMessageUI(uiIdentifier: uiIdentifier, message: any, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean>;
   }
 }

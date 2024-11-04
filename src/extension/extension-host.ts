@@ -94,12 +94,15 @@ export class EndpointRight implements NSExtensionHost.IEndpointRight {
   }
 
   registerUI(uiIdentifier: uiIdentifier, space: spaceIdentifier, zone: zoneIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked): Promise<boolean> {
-    // const proxyListener = Comlink.proxy(listener);
     return this.#extensionHost.registerUI(uiIdentifier, space, zone, listener, this.#identifier);
   }
 
   removeUI(uiIdentifier: uiIdentifier): Promise<boolean> {
     return this.#extensionHost.removeUI(uiIdentifier, this.#identifier);
+  }
+
+  postMessageUI(uiIdentifier: uiIdentifier, message: any): Promise<boolean> {
+    return this.#extensionHost.postMessageUI(uiIdentifier, message, this.#identifier);
   }
 
 }
@@ -488,6 +491,31 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
 
     //Remove the uiController from our extensionWorkerController's uiControllers Map and return that result
     return extensionWorkerController.uiControllers.delete(uiController.identifier);
+  }
+
+  async postMessageUI(uiIdentifier: uiIdentifier, message: any, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
+    //There should be an endpointRightIdentifier
+    if (endpointRightIdentifier === undefined) return false;
+
+    //Get the endpoint from our Map
+    const endpoint = this.#extensionWorkerEndpoints.get(endpointRightIdentifier);
+    //Check if it exists and check if the extensionWorkerControllerIdentifier exists
+    if (endpoint === undefined || endpoint.extensionWorkerControllerIdentifier === undefined) return false;
+
+    //Get the extensionWorkerController
+    const extensionWorkerController = this.#extensionWorkerControllers.get(endpoint.extensionWorkerControllerIdentifier);
+    //Check if it exists
+    if (!extensionWorkerController) return false;
+
+    //Get the UIController from our extensionWorkerController's uiControllers Map
+    const uiController = extensionWorkerController.uiControllers.get(uiIdentifier);
+    //Check if it exists and if it does not return false as this means that there is not any UI
+    //loaded with that identifier
+    if (uiController === undefined) return false;
+
+
+    //PostMessage the data to it and return whether it was successful or not
+    return await this.#extensionServiceEndpointRight.postMessage(uiController.iFrameControllerIdentifier, message);
   }
 
   async extensionState(extensionIdentifier: extensionIdentifier): Promise<extensionState | null> {

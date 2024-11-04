@@ -42,6 +42,10 @@ class EndpointRight implements NSExtensionWorker.IEndpointRight {
     return this.#extensionWorker.removeUI(uiIdentifier);
   }
 
+  postMessageUI(uiIdentifier: uiIdentifier, message: any): Promise<boolean> {
+    return this.#extensionWorker.postMessageUI(uiIdentifier, message);
+  }
+
 }
 
 class ExtensionWorker implements NSExtensionWorker.IEndpointLeft, NSExtensionWorker.IEndpointRight {
@@ -111,6 +115,10 @@ class ExtensionWorker implements NSExtensionWorker.IEndpointLeft, NSExtensionWor
 
   removeUI(uiIdentifier: uiIdentifier): Promise<boolean> {
     return this.#extensionHostEndpointRight.removeUI(uiIdentifier);
+  }
+
+  postMessageUI(uiIdentifier: uiIdentifier, message: any): Promise<boolean> {
+    return this.#extensionHostEndpointRight.postMessageUI(uiIdentifier, message);
   }
 
 }
