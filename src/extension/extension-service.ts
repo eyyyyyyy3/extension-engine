@@ -249,10 +249,6 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     //Assign it to the iFrame.src
     iFrame.src = uiURL;
 
-    //Remove the URL as it is not needed anymore
-    iFrame.onload = () => URL.revokeObjectURL(uiURL);
-
-
     //Create an iFrameLocation for the zoneSet
     const iFrameLocation: iFrameLocation = [extensionHostController.identifier, iFrameController.identifier];
     //Add the iFrameLocation to our zoneSet
@@ -294,6 +290,13 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     //we remove it
     if (iFrame.parentNode !== null)
       iFrame.parentNode.removeChild(iFrame);
+
+
+    //Get the URL we assigned to our iFrame as its src
+    const uiURL = iFrame.src;
+    //Remove the URL as it is not needed anymore
+    URL.revokeObjectURL(uiURL);
+
 
     const spaceZoneLocation = iFrameController.spaceZoneLocation;
     const iFrameLocation: iFrameLocation = [extensionHostController.identifier, iFrameController.identifier];

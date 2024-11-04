@@ -9,3 +9,4 @@ const extensionHostControllerIdentifier = await extensionServiceL.loadExtensionH
 export const endpointContext = React.createContext(extensionServiceL);
 
 await extensionServiceL.loadExtension("vici.first", extensionHostControllerIdentifier);
+// await extensionServiceL.unloadExtension("vici.first", extensionHostControllerIdentifier);
