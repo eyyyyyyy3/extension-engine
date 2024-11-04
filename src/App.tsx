@@ -1,26 +1,8 @@
-import { useState } from "react";
 import reactLogo from "./assets/react.svg";
+import React from "react";
 import "./App.css";
 
-import { ExtensionService } from "./extension/extension-service";
-
-async function love() {
-  const extensionService = new ExtensionService();
-  const extensionServiceL = extensionService.endpointLeft;
-  //Something wrong with this function
-  extensionServiceL.registerSpace("app", ["extension"]);
-  const extensionHostControllerIdentifier = await extensionServiceL.loadExtensionHost();
-  await extensionServiceL.loadExtension("vici.first", extensionHostControllerIdentifier);
-  extensionServiceL.loadSpace("app");
-  await extensionServiceL.unloadExtension("vici.first", extensionHostControllerIdentifier);
-}
-
 function App() {
-  const [name, setName] = useState("");
-
-  love();
-
-
   return (
     <main className="container">
       <div id="extension"></div>
@@ -37,9 +19,8 @@ function App() {
           <img src={reactLogo} className="logo react" alt="React logo" />
         </a>
       </div>
-      <div id="extension"></div>
       <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-    </main>
+    </main >
   );
 }
 
