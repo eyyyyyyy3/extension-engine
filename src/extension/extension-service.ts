@@ -233,7 +233,7 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     //Get the extensionHostController
     const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
     //Check if it exists and if not return null
-    if (!extensionHostController) return null;
+    if (extensionHostController === undefined) return null;
 
     //Create an iFrame
     const iFrame = document.createElement("iframe");
@@ -268,11 +268,10 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
 
     const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
-    //TODO: remove the ! notaion and explicitly check for undefined in all instances 
-    if (!extensionHostController) return false;
+    if (extensionHostController === undefined) return false;
 
     const iFrameController = extensionHostController.iFrameControllers.get(iFrameControllerIdentifier);
-    if (!iFrameController) return false;
+    if (iFrameController === undefined) return false;
 
     const iFrame = iFrameController.iFrame;
 
@@ -314,7 +313,7 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
 
     const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
-    if (!extensionHostController) return false;
+    if (extensionHostController === undefined) return false;
 
     return this.#removeIFrames(extensionHostController);
   }
@@ -370,10 +369,10 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return null;
 
     const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
-    if (!extensionHostController) return null;
+    if (extensionHostController === undefined) return null;
 
     const iFrameController = extensionHostController.iFrameControllers.get(iFrameControllerIdentifier);
-    if (!iFrameController) return null;
+    if (iFrameController === undefined) return null;
 
     const iFrame = iFrameController.iFrame;
     if (iFrame) {
@@ -401,10 +400,10 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
 
     const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
-    if (!extensionHostController) return false;
+    if (extensionHostController === undefined) return false;
 
     const iFrameController = extensionHostController.iFrameControllers.get(iFrameControllerIdentifier);
-    if (!iFrameController || !iFrameController.eventControllers.has(eventControllerIdentifier)) return false;
+    if (iFrameController === undefined || !iFrameController.eventControllers.has(eventControllerIdentifier)) return false;
 
     iFrameController.eventControllers.get(eventControllerIdentifier)!.abortController.abort();
     return iFrameController.eventControllers.delete(eventControllerIdentifier);
@@ -418,10 +417,10 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
 
     const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
-    if (!extensionHostController) return false;
+    if (extensionHostController === undefined) return false;
 
     const iFrameController = extensionHostController.iFrameControllers.get(iFrameControllerIdentifier);
-    if (!iFrameController) return false;
+    if (iFrameController === undefined) return false;
 
     const iFrame = iFrameController.iFrame;
     if (iFrame && iFrame.contentWindow && iFrame.contentDocument && iFrame.contentDocument.readyState == "complete") {

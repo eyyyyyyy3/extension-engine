@@ -193,10 +193,10 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     const extensionWorkerEndpoint = Comlink.wrap<ExtensionWorker.EndpointLeft>(worker);
 
     //Directly utilize the endpoint and load the extension
-    const didExtensionLoad = await extensionWorkerEndpoint.loadExtenion(extension.entrypoint);
+    const isExtensionLoaded = await extensionWorkerEndpoint.loadExtenion(extension.entrypoint);
 
     //If the operation failed, terminate the worker and return false
-    if (!didExtensionLoad) {
+    if (!isExtensionLoaded) {
       //If the extension was not loaded, kill the web worker
       worker.terminate();
       //And return false
@@ -422,7 +422,7 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     //Get the extensionWorkerController
     const extensionWorkerController = this.#extensionWorkerControllers.get(endpoint.extensionWorkerControllerIdentifier);
     //Check if it exists
-    if (!extensionWorkerController) return false;
+    if (extensionWorkerController === undefined) return false;
 
     //Check if the ui is already loaded and if it is return false
     if (extensionWorkerController.uiControllers.has(uiIdentifier)) return false;
@@ -477,7 +477,7 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     //Get the extensionWorkerController
     const extensionWorkerController = this.#extensionWorkerControllers.get(endpoint.extensionWorkerControllerIdentifier);
     //Check if it exists
-    if (!extensionWorkerController) return false;
+    if (extensionWorkerController === undefined) return false;
 
     //Get the UIController from our extensionWorkerController's uiControllers Map
     const uiController = extensionWorkerController.uiControllers.get(uiIdentifier);
@@ -505,7 +505,7 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     //Get the extensionWorkerController
     const extensionWorkerController = this.#extensionWorkerControllers.get(endpoint.extensionWorkerControllerIdentifier);
     //Check if it exists
-    if (!extensionWorkerController) return false;
+    if (extensionWorkerController === undefined) return false;
 
     //Get the UIController from our extensionWorkerController's uiControllers Map
     const uiController = extensionWorkerController.uiControllers.get(uiIdentifier);
