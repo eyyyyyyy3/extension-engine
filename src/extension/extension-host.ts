@@ -453,10 +453,13 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     const iFrameControllerIdentifier = await this.#extensionServiceEndpointRight.registerIFrame(ui, spaceZoneLocation);
     if (iFrameControllerIdentifier === null) return false;
 
-    //Register the listener to our newly created IFrame
+    //Register the listener to our newly created iFrame
     const eventControllerIdentifier = await this.#extensionServiceEndpointRight.addEventListener(iFrameControllerIdentifier, listener);
-    //TODO: if this fails I should actually remove the created IFrame
-    if (eventControllerIdentifier === null) return false;
+    //If this fails we remove the created iFrame and return false
+    if (eventControllerIdentifier === null) {
+      await this.#extensionServiceEndpointRight.removeIFrame(iFrameControllerIdentifier);
+      return false;
+    }
 
     //Create an uiController which holds the iFrameControllerIdentifier and eventControllerIdentifier
     const uiController = new UIController(uiIdentifier, iFrameControllerIdentifier, eventControllerIdentifier);
