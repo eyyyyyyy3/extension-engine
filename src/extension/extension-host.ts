@@ -443,8 +443,11 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     //Check if it exists
     if (ui === undefined) return false;
 
-    //TODO: Get the space and zones via the extensionServiceEndpointRight and check before registering an IFrame
     const spaceZoneLocation: spaceZoneLocation = [space, zone];
+
+    //Check whether the spaceZoneLocation exists or not
+    const isSpaceZoneExistent = await this.#extensionServiceEndpointRight.hasSpaceZone(spaceZoneLocation);
+    if (!isSpaceZoneExistent) return false;
 
     //Register the IFrame with our ui file and the spaceZoneLocation
     const iFrameControllerIdentifier = await this.#extensionServiceEndpointRight.registerIFrame(ui, spaceZoneLocation);

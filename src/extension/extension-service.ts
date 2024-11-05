@@ -3,7 +3,7 @@ import { sendExposed, awaitExposed } from "./comlink-helper";
 import * as ExtensionHost from "./extension-host";
 import { acquireSDK } from "../sdk";
 import { ASDK } from "../sdk/abstracts/sdk";
-import { NSExtensionService, endpointRightIdentifier, eventControllerIdentifier, extensionHostControllerIdentifier, iFrameControllerIdentifier, iFrameLocation, spaceIdentifier, spaceZoneLocation, zoneIdentifier } from "./types";
+import { NSExtensionService, endpointRightIdentifier, eventControllerIdentifier, extensionHostControllerIdentifier, iFrameControllerIdentifier, iFrameLocation, spaceIdentifier, spaceZoneLocation, spaceZones, zoneIdentifier } from "./types";
 
 class EventController {
   static #currentIdentifier: eventControllerIdentifier = 0;
@@ -178,6 +178,14 @@ export class EndpointRight implements NSExtensionService.IEndpointRight {
   postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, message: any): boolean {
     return this.#extensionService.postMessage(iFrameControllerIdentifier, message, this.#identifier);
   }
+
+  getSpaces(): spaceZones[] | null {
+    return this.#extensionService.getSpaces(this.#identifier);
+  }
+
+  hasSpaceZone(spaceZoneLocation: spaceZoneLocation): boolean {
+    return this.#extensionService.hasSpaceZone(spaceZoneLocation, this.#identifier);
+  }
 }
 
 export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExtensionService.IEndpointRight {
@@ -208,6 +216,9 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
   }
 
   registerIFrame(ui: File, spaceZoneLocation: spaceZoneLocation, endpointRightIdentifier?: endpointRightIdentifier): iFrameControllerIdentifier | null {
+    //There may be some kind of restriction to certain spaces
+
+
     //There should be an endpointRightIdentifier
     if (endpointRightIdentifier === undefined) return null;
 
@@ -428,6 +439,55 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
       return true;
     }
     return false;
+  }
+
+  getSpaces(endpointRightIdentifier?: endpointRightIdentifier): spaceZones[] | null {
+    //We take the endpointRightIdentifier as this may be used later on to add 
+    //restrictions
+    if (endpointRightIdentifier === undefined) return null;
+
+    const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
+
+    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return null;
+
+    if (!this.#extensionHostControllers.has(endpoint.extensionHostControllerIdentifier)) return null;
+
+    //Creating an Array to hold all our spaces with their individual zones
+    let spaces: spaceZones[] = new Array<spaceZones>(this.#spaceControllers.size);
+
+    //Iterating over all the spaceControllers and grabbing the spaceIdentifier
+    for (const [space, spaceController] of this.#spaceControllers) {
+      //Creating an Array to hold all the zones for our space. This will later be pushing to the spaceZones Array
+      let zones: zoneIdentifier[] = new Array<zoneIdentifier>(spaceController.zoneSet.size);
+      for (const [zone, _] of spaceController.zoneSet) {
+        //Iterating over all the zones and pushing them to our zones Array
+        zones.push(zone);
+      }
+      //Pushing the current space with all its zone to our spaces Array
+      spaces.push([space, zones]);
+    }
+
+    //Returning our spaces Array
+    return spaces;
+  }
+
+  hasSpaceZone(spaceZoneLocation: spaceZoneLocation, endpointRightIdentifier?: endpointRightIdentifier): boolean {
+    //We take the endpointRightIdentifier as this may be used later on to add 
+    //restrictions
+    if (endpointRightIdentifier === undefined) return false;
+
+    const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
+
+    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
+
+    if (!this.#extensionHostControllers.has(endpoint.extensionHostControllerIdentifier)) return false;
+
+    const [space, zone] = spaceZoneLocation;
+
+    const spaceController = this.#spaceControllers.get(space);
+    if (spaceController === undefined) return false;
+
+    return spaceController.zoneSet.has(zone);
   }
 
   async loadExtensionHost(): Promise<extensionHostControllerIdentifier> {

@@ -5,6 +5,7 @@ export type iFrameControllerIdentifier = string;
 export type extensionHostControllerIdentifier = number;
 
 export type spaceZoneLocation = [spaceIdentifier, zoneIdentifier];
+export type spaceZones = [spaceIdentifier, zoneIdentifier[]];
 export type iFrameLocation = [extensionHostControllerIdentifier, iFrameControllerIdentifier];
 
 export namespace NSExtensionService {
@@ -35,5 +36,7 @@ export namespace NSExtensionService {
     addEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): eventControllerIdentifier | null;
     removeEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventControllerIdentifier: eventControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean;
     postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, message: any, endpointRightIdentifier?: endpointRightIdentifier): boolean;
+    getSpaces(endpointRightIdentifier?: endpointRightIdentifier): spaceZones[] | null;
+    hasSpaceZone(spaceZoneLocation: spaceZoneLocation, endpointRightIdentifier?: endpointRightIdentifier): boolean;
   }
 }
