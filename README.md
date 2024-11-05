@@ -1,7 +1,11 @@
-# Tauri + React + Typescript
+# Application of the extension-engine in a Tauri environment
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
 
-## Recommended IDE Setup
+## Installation
+- First: Clone the repository
+- Second: `cd` into the repository
+- Third: Do a `pnpm install`
+- Fourth: Run the application with `pnpm run tauri dev`
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+**NOTE: YOU WILL HAVE TO COPY THE EXAMPLE EXTENSION INTO YOUR EXTENSIONS DIRECTORY (WHICH IS LOCATED INSIDE OF THE TAURI DEFINED $APPLOCALDATA PATH)**
+

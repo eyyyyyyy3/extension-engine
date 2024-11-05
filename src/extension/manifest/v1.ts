@@ -5,7 +5,7 @@ const runtimeEnum = z.enum(["native", "web", "universal"]);
 //Manifest description for Manifest version 1
 export const schema = z.object({
   manifestVersion: z.literal("1.0"),                          //Manifest Version. Predefined values which we make public to developers
-  apiVersion: z.string(),                                     //The API version required to run this plugin. Version must be parseable by node-semve
+  apiVersion: z.string(),                                     //The API version required to run this extension. Version must be parseable by node-semve
   runtime: runtimeEnum,                                       //Where the extension is intended to run. Native has fs access for example
   name: z.string(),                                           //The extensions name
   publisher: z.string(),                                      //The extension publisher. This is also unique t the Marketplace

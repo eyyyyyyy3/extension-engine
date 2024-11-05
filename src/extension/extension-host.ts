@@ -277,27 +277,27 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
   }
 
   async resolveExtensions(): Promise<void> {
-    //Check if plugins exists and if not create the plugins dir and return
-    if (!await this.#sdk.exists("plugins")) {
-      await this.#sdk.mkdir("plugins");
+    //Check if extensions exists and if not create the extensions dir and return
+    if (!await this.#sdk.exists("extensions")) {
+      await this.#sdk.mkdir("extensions");
       return;
     }
 
-    //Read all the entries inside of the plugin dir
-    const pluginDirectories = await this.#sdk.readDir("./plugins");
+    //Read all the entries inside of the extension dir
+    const extensionDirectories = await this.#sdk.readDir("./extensions");
 
-    //Iterate over all entries inside of ./plugins
-    for (const directory of pluginDirectories) {
+    //Iterate over all entries inside of ./extensions
+    for (const directory of extensionDirectories) {
       //If error then continue to the next entry
       try {
         //If it is not a directory skip to the next entry
         if (!directory.isDirectory) continue;
 
-        //The current plugins path
-        const pluginPath = "./plugins/".concat(directory.name, "/");
+        //The current extensions path
+        const extensionPath = "./extensions/".concat(directory.name, "/");
 
-        //The path to the plugin manifest
-        const manifestPath = pluginPath.concat("manifest.json");
+        //The path to the extension manifest
+        const manifestPath = extensionPath.concat("manifest.json");
         //Check if the manifest actually exists
         if (!await this.#sdk.exists(manifestPath)) continue;
 
@@ -314,13 +314,13 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
         if (manifest === null) continue;
 
         //Now we know what the entrypoint is called, so we check if it exists
-        const entrypointPath = pluginPath.concat(manifest.entrypoint());
-        //Skip this plugin if there is no actual entrypoint file
+        const entrypointPath = extensionPath.concat(manifest.entrypoint());
+        //Skip this extension if there is no actual entrypoint file
         if (!await this.#sdk.exists(entrypointPath)) continue;
 
         //Now we know what the icon is called, so we check if it exists
-        const iconPath = pluginPath.concat(manifest.icon());
-        //Skip this plugin if there is no actual icon file
+        const iconPath = extensionPath.concat(manifest.icon());
+        //Skip this extension if there is no actual icon file
         if (!await this.#sdk.exists(iconPath)) continue;
 
         //Read the entrypoint file
@@ -353,12 +353,12 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
             //Grab the value of the thang
             if (uiRecord.hasOwnProperty(key)) {
               //Specify the path of the current UI file
-              const uiPath = pluginPath.concat(uiRecord[key]);
+              const uiPath = extensionPath.concat(uiRecord[key]);
 
               //Now we know what the entrypoint is called, so we check if it exists
               if (!await this.#sdk.exists(uiPath)) {
                 //It does not exist so we throw an Error and the catch clause will catch it and 
-                //continue to the next plugin
+                //continue to the next extension
                 throw new Error(`[MANIFEST] ${uiPath} not found! Make sure it exists!`);
               }
 
@@ -386,7 +386,7 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
 
         const extension = new Extension(
           manifest.identifier(),
-          pluginPath,
+          extensionPath,
           manifest,
           entrypoint,
           icon,
