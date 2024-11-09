@@ -4,79 +4,20 @@ import * as ExtensionHost from "./extension-host";
 import { acquireSDK } from "../sdk";
 import { ASDK } from "../sdk/abstracts/sdk";
 import { NSExtensionService, endpointRightIdentifier, eventControllerIdentifier, extensionHostControllerIdentifier, iFrameControllerIdentifier, iFrameLocation, spaceIdentifier, spaceZoneLocation, spaceZones, zoneIdentifier } from "./types";
+import { SpaceController } from "./controller/space-controller";
+import { ExtensionHostController } from "./controller/extension-host-controller";
+import { IFrameController } from "./controller/iframe-controller";
+import { EventController } from "./controller/event-controller";
 
-class EventController {
-  static #currentIdentifier: eventControllerIdentifier = 0;
-  identifier: eventControllerIdentifier;
-  abortController: AbortController;
-  constructor(abortController: AbortController) {
-    this.identifier = EventController.#currentIdentifier;
-    EventController.#currentIdentifier += 1;
-
-    this.abortController = abortController;
-  }
-}
-
-class IFrameController {
-  static #currentIdentifier: number = 0;
-  eventControllers: Map<eventControllerIdentifier, EventController>;
-  identifier: iFrameControllerIdentifier;
-  iFrame: HTMLIFrameElement;
-  spaceZoneLocation: spaceZoneLocation;
-  constructor(iFrame: HTMLIFrameElement, spaceZoneLocation: spaceZoneLocation) {
-    this.eventControllers = new Map<eventControllerIdentifier, EventController>;
-    this.identifier = IFrameController.#currentIdentifier.toString();
-    IFrameController.#currentIdentifier += 1;
-    this.iFrame = iFrame;
-    this.spaceZoneLocation = spaceZoneLocation;
-  }
-}
-
-class SpaceController {
-  identifier: spaceIdentifier;
-  //Kinda collapsing the ZoneController as it just has the Set and its identifier
-  zoneSet: Map<zoneIdentifier, Set<iFrameLocation>>;
-  constructor(identifier: spaceIdentifier) {
-    this.identifier = identifier;
-    this.zoneSet = new Map<zoneIdentifier, Set<iFrameLocation>>();
-  }
-}
 
 //TODO: Rework so that I can move it to the types (maybe even a tuple)
+//Currently all the right endpoints are classes. This is because
+//they implement the interfaces but deliberately leave out the
+//endpointRightIdentifier as the caller doesn't and mustn't provide it
 export interface IExposeRight {
   endpoint: EndpointRight & Comlink.ProxyMarked;
   sdk: ASDK & Comlink.ProxyMarked;
 }
-
-//The ExtensionHostController hold all the relevant information of an extension-host.
-//It has references to the actual web worker and all the IFrames that were opened via
-//that extension-host and the actual endpoint of the extension-host. The controllers
-//are used by both the left and the right ExtensionServiceEndpoints.
-class ExtensionHostController {
-  static #currentIdentifier: extensionHostControllerIdentifier = 0;
-  identifier: extensionHostControllerIdentifier;
-  iFrameControllers: Map<iFrameControllerIdentifier, IFrameController>;
-  worker: Worker | null;
-  //I should use interfaces rather that the class instance 
-  //for flexibility purposes but doing that would break
-  //the way I expose the right endpoints. There is a 
-  //"never trust whats coming from the right" principle
-  //where we manage the state from any right endpoint. Because
-  //of that state management exposing the interface would make
-  //for some ugly optional function parameters that we hide with 
-  //the class. Any input would be ignored anyways but still.
-  extensionHostEndpoint: Comlink.Remote<ExtensionHost.EndpointLeft>;
-  endpointRightIdentifier: endpointRightIdentifier | undefined;
-
-  constructor(worker: Worker, extensionHostEndpoint: Comlink.Remote<ExtensionHost.EndpointLeft>) {
-    this.identifier = ExtensionHostController.#currentIdentifier;
-    this.iFrameControllers = new Map<iFrameControllerIdentifier, IFrameController>;
-    ExtensionHostController.#currentIdentifier += 1;
-    this.worker = worker;
-    this.extensionHostEndpoint = extensionHostEndpoint;
-  }
-}
-
 
 
 class EndpointLeft implements NSExtensionService.IEndpointLeft {

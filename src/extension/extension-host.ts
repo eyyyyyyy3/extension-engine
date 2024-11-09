@@ -8,6 +8,8 @@ import { parseManifest } from "./manifest";
 
 import { ASDK } from "../sdk/abstracts/sdk";
 import { NSExtensionHost, endpointRightIdentifier, eventControllerIdentifier, extensionIdentifier, extensionState, extensionWorkerControllerIdentifier, iFrameControllerIdentifier, iFrameLocation, spaceIdentifier, spaceZoneLocation, uiIdentifier, zoneIdentifier } from "./types";
+import { ExtensionWorkerController } from "./controller/extension-worker-controller";
+import { UIController } from "./controller/ui-controller";
 
 
 export class Extension {
@@ -105,38 +107,6 @@ export class EndpointRight implements NSExtensionHost.IEndpointRight {
     return this.#extensionHost.postMessageUI(uiIdentifier, message, this.#identifier);
   }
 
-}
-
-class UIController {
-  identifier: uiIdentifier;
-  iFrameControllerIdentifier: iFrameControllerIdentifier;
-  eventControllerIdentifier: eventControllerIdentifier;
-  constructor(uiIdentifier: uiIdentifier, iFrameControllerIdentifier: iFrameControllerIdentifier, eventControllerIdentifier: eventControllerIdentifier) {
-    this.identifier = uiIdentifier;
-    this.iFrameControllerIdentifier = iFrameControllerIdentifier;
-    this.eventControllerIdentifier = eventControllerIdentifier;
-  }
-}
-
-class ExtensionWorkerController {
-  static #currentIdentifier: extensionWorkerControllerIdentifier = 0;
-  identifier: extensionWorkerControllerIdentifier;
-  uiControllers: Map<uiIdentifier, UIController>;
-
-  worker: Worker | null;
-  endpointRightIdentifier: endpointRightIdentifier | undefined;
-  extensionIdentifier: extensionIdentifier | undefined;
-  extensionWorkerEndpoint: Comlink.Remote<ExtensionWorker.EndpointLeft>;
-
-  constructor(worker: Worker, extensionWorkerEndpoint: Comlink.Remote<ExtensionWorker.EndpointLeft>) {
-    this.identifier = ExtensionWorkerController.#currentIdentifier;
-    ExtensionWorkerController.#currentIdentifier += 1;
-
-    this.uiControllers = new Map<uiIdentifier, UIController>();
-
-    this.worker = worker;
-    this.extensionWorkerEndpoint = extensionWorkerEndpoint;
-  }
 }
 
 class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IEndpointRight {
