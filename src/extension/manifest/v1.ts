@@ -13,6 +13,7 @@ export const schema = z.object({
   license: z.string(),                                                            //https://docs.npmjs.com/cli/v7/configuring-npm/package-json#license
   displayName: z.string(),                                                        //The display name for the extension used in the Marketplace. It is unique
   description: z.string().optional(),                                             //A description of the extension
+  website: z.string().url().optional(),                                           //The link to the website of the extension creator
   sponsor: z.string().url().optional(),                                           //A link for people if they want to sponsor the extension
   entrypoint: z.string().refine(
     (val) => val.endsWith(".js"),
@@ -44,6 +45,7 @@ export interface IManifest {
   license(): string;
   displayName(): string;
   description(): string | undefined;
+  website(): string | undefined;
   sponsor(): string | undefined;
   entrypoint(): string;
   extensionDependencies(): [string, string][] | undefined;
@@ -88,6 +90,9 @@ export class Manifest implements IManifest {
   }
   description(): string | undefined {
     return this.#parsedData.description;
+  }
+  website(): string | undefined {
+    return this.#parsedData.website;
   }
   sponsor(): string | undefined {
     return this.#parsedData.sponsor;
