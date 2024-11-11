@@ -20,6 +20,9 @@ importers:
       comlink:
         specifier: ^4.4.1
         version: 4.4.1
+      compare-versions:
+        specifier: ^6.1.1
+        version: 6.1.1
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -513,6 +516,9 @@ packages:
 
   comlink@4.4.1:
     resolution: {integrity: sha512-+1dlx0aY5Jo1vHy/tSsIGpSkN4tS9rZSW8FIhG0JH/crs9wwweswIo/POr451r7bZww3hFbPAKnTpimzL/mm4Q==}
+
+  compare-versions@6.1.1:
+    resolution: {integrity: sha512-4hm4VPpIecmlg59CHXnRDnqGplJFrbLG4aFEl5vl6cK1u76ws3LLvX7ikFnTDl5vo39sjWD6AaDPYodJp/NNHg==}
 
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
@@ -1089,6 +1095,8 @@ snapshots:
   color-name@1.1.3: {}
 
   comlink@4.4.1: {}
+
+  compare-versions@6.1.1: {}
 
   convert-source-map@2.0.0: {}
 

@@ -1,15 +1,22 @@
 import { z } from "zod";
+import { validate } from "compare-versions";
 
 const runtimeEnum = z.enum(["native", "web", "universal"]);
 
 //Manifest description for Manifest version 1
 export const schema = z.object({
-  manifestVersion: z.literal("1.0"),                                              //Manifest Version. Predefined values which we make public to developers
-  apiVersion: z.string(),                                                         //The API version required to run this extension. Version must be parseable by node-semve
+  manifestVersion: z.literal("1.0.0"),                                            //Manifest Version. Predefined values which we make public to developers. Version must be semver compliant
+  apiVersion: z.string().refine(
+    (val) => validate(val),
+    { message: "[MANIFEST] The apiVersion is not semver compliant!" }
+  ),                                                                              //The API version required to run this extension. Version must be semver compliant
   runtime: runtimeEnum,                                                           //Where the extension is intended to run. Native has fs access for example
   name: z.string(),                                                               //The extensions name
-  publisher: z.string(),                                                          //The extension publisher. This is also unique t the Marketplace
-  version: z.string(),                                                            //The version of the current extension. Version must be parseable by node-semver
+  publisher: z.string(),                                                          //The extension publisher. This is also unique to the Marketplace
+  version: z.string().refine(
+    (val) => validate(val),
+    { message: "[MANIFEST] The version is not semver compliant!" }
+  ),                                                                              //The version of the current extension. Version must be semver compliant
   license: z.string(),                                                            //https://docs.npmjs.com/cli/v7/configuring-npm/package-json#license
   displayName: z.string(),                                                        //The display name for the extension used in the Marketplace. It is unique
   description: z.string().optional(),                                             //A description of the extension
