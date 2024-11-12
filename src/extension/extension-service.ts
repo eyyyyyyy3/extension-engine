@@ -3,11 +3,11 @@ import { sendExposed, awaitExposed } from "./comlink-helper";
 import * as ExtensionHost from "./extension-host";
 import { acquireSDK } from "../sdk";
 import { ASDK } from "../sdk/abstracts/sdk";
-import { NSExtensionService, endpointRightIdentifier, eventControllerIdentifier, extensionHostControllerIdentifier, iFrameControllerIdentifier, iFrameLocation, spaceIdentifier, spaceZoneLocation, spaceZones, zoneIdentifier } from "./types";
+import { NSExtensionService, endpointRightIdentifier, eventListenerControllerIdentifier, extensionHostControllerIdentifier, iFrameControllerIdentifier, iFrameLocation, spaceIdentifier, spaceZoneLocation, spaceZones, zoneIdentifier } from "./types";
 import { SpaceController } from "./controller/space-controller";
 import { ExtensionHostController } from "./controller/extension-host-controller";
 import { IFrameController } from "./controller/iframe-controller";
-import { EventController } from "./controller/event-controller";
+import { EventListenerController } from "./controller/event-listener-controller";
 
 
 //TODO: Rework so that I can move it to the types (maybe even a tuple)
@@ -108,12 +108,12 @@ export class EndpointRight implements NSExtensionService.IEndpointRight {
     return this.#extensionService.removeIFrames(this.#identifier);
   }
 
-  addEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked): eventControllerIdentifier | null {
+  addEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked): eventListenerControllerIdentifier | null {
     return this.#extensionService.addEventListener(iFrameControllerIdentifier, listener, this.#identifier);
   }
 
-  removeEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventControllerIdentifier: eventControllerIdentifier): boolean {
-    return this.#extensionService.removeEventListener(iFrameControllerIdentifier, eventControllerIdentifier, this.#identifier);
+  removeEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventListenerControllerIdentifier: eventListenerControllerIdentifier): boolean {
+    return this.#extensionService.removeEventListener(iFrameControllerIdentifier, eventListenerControllerIdentifier, this.#identifier);
   }
 
   postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, message: any): boolean {
@@ -233,8 +233,8 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
 
 
     //Here we remove all the eventListeners that were connected to the iFrame
-    for (const [_, eventController] of iFrameController.eventControllers) {
-      eventController.abortController.abort();
+    for (const [_, eventListenerController] of iFrameController.eventListenerControllers) {
+      eventListenerController.abortController.abort();
     }
 
     //If the iFrame has a parent (that means it is connected to the DOM)
@@ -274,9 +274,9 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     for (const [_, iFrameController] of extensionHostController.iFrameControllers) {
       const iFrame = iFrameController.iFrame;
 
-      for (const [_, eventController] of iFrameController.eventControllers) {
+      for (const [_, eventListenerController] of iFrameController.eventListenerControllers) {
         //Remove the reigstered events to the current IFrame
-        eventController.abortController.abort();
+        eventListenerController.abortController.abort();
       }
       //Remove the IFrame itself if it is appended to the DOM
       if (iFrame.parentNode !== null)
@@ -313,7 +313,7 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     return iFrameLocations.delete(iFrameLocation);
   }
 
-  addEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): eventControllerIdentifier | null {
+  addEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): eventListenerControllerIdentifier | null {
     if (endpointRightIdentifier === undefined) return null;
 
     const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
@@ -338,17 +338,17 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
           listener(ev.data);
         }
       }, { signal: abortController.signal });
-      const eventController = new EventController(abortController);
+      const eventListenerController = new EventListenerController(abortController);
 
-      //Add the eventController to our IFrame specific controller map
-      iFrameController.eventControllers.set(eventController.identifier, eventController);
+      //Add the eventListenerController to our IFrame specific controller map
+      iFrameController.eventListenerControllers.set(eventListenerController.identifier, eventListenerController);
       //Return the iFrame controller 
-      return eventController.identifier;
+      return eventListenerController.identifier;
     }
     return null;
   }
 
-  removeEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventControllerIdentifier: eventControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean {
+  removeEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventListenerControllerIdentifier: eventListenerControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean {
     if (endpointRightIdentifier === undefined) return false;
 
     const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
@@ -359,10 +359,10 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     if (extensionHostController === undefined) return false;
 
     const iFrameController = extensionHostController.iFrameControllers.get(iFrameControllerIdentifier);
-    if (iFrameController === undefined || !iFrameController.eventControllers.has(eventControllerIdentifier)) return false;
+    if (iFrameController === undefined || !iFrameController.eventListenerControllers.has(eventListenerControllerIdentifier)) return false;
 
-    iFrameController.eventControllers.get(eventControllerIdentifier)!.abortController.abort();
-    return iFrameController.eventControllers.delete(eventControllerIdentifier);
+    iFrameController.eventListenerControllers.get(eventListenerControllerIdentifier)!.abortController.abort();
+    return iFrameController.eventListenerControllers.delete(eventListenerControllerIdentifier);
   }
 
   postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, message: any, endpointRightIdentifier?: endpointRightIdentifier): boolean {

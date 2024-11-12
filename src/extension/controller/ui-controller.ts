@@ -1,12 +1,12 @@
-import { uiIdentifier, iFrameControllerIdentifier, eventControllerIdentifier } from "../types";
+import { uiIdentifier, iFrameControllerIdentifier, eventListenerControllerIdentifier } from "../types";
 
 export class UIController {
   identifier: uiIdentifier;
   iFrameControllerIdentifier: iFrameControllerIdentifier;
-  eventControllerIdentifier: eventControllerIdentifier;
-  constructor(uiIdentifier: uiIdentifier, iFrameControllerIdentifier: iFrameControllerIdentifier, eventControllerIdentifier: eventControllerIdentifier) {
+  eventListenerControllerIdentifier: eventListenerControllerIdentifier;
+  constructor(uiIdentifier: uiIdentifier, iFrameControllerIdentifier: iFrameControllerIdentifier, eventListenerControllerIdentifier: eventListenerControllerIdentifier) {
     this.identifier = uiIdentifier;
     this.iFrameControllerIdentifier = iFrameControllerIdentifier;
-    this.eventControllerIdentifier = eventControllerIdentifier;
+    this.eventListenerControllerIdentifier = eventListenerControllerIdentifier;
   }
 }

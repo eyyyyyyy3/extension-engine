@@ -7,7 +7,7 @@ import * as V1 from "./manifest/v1";
 import { parseManifest } from "./manifest";
 
 import { ASDK } from "../sdk/abstracts/sdk";
-import { NSExtensionHost, endpointRightIdentifier, eventControllerIdentifier, extensionIdentifier, extensionState, extensionWorkerControllerIdentifier, iFrameControllerIdentifier, iFrameLocation, spaceIdentifier, spaceZoneLocation, uiIdentifier, zoneIdentifier } from "./types";
+import { NSExtensionHost, endpointRightIdentifier, extensionIdentifier, extensionState, extensionWorkerControllerIdentifier, iFrameControllerIdentifier, iFrameLocation, spaceIdentifier, spaceZoneLocation, uiIdentifier, zoneIdentifier } from "./types";
 import { ExtensionWorkerController } from "./controller/extension-worker-controller";
 import { UIController } from "./controller/ui-controller";
 
@@ -424,15 +424,15 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     if (iFrameControllerIdentifier === null) return false;
 
     //Register the listener to our newly created iFrame
-    const eventControllerIdentifier = await this.#extensionServiceEndpointRight.addEventListener(iFrameControllerIdentifier, listener);
+    const eventListenerControllerIdentifier = await this.#extensionServiceEndpointRight.addEventListener(iFrameControllerIdentifier, listener);
     //If this fails we remove the created iFrame and return false
-    if (eventControllerIdentifier === null) {
+    if (eventListenerControllerIdentifier === null) {
       await this.#extensionServiceEndpointRight.removeIFrame(iFrameControllerIdentifier);
       return false;
     }
 
-    //Create an uiController which holds the iFrameControllerIdentifier and eventControllerIdentifier
-    const uiController = new UIController(uiIdentifier, iFrameControllerIdentifier, eventControllerIdentifier);
+    //Create an uiController which holds the iFrameControllerIdentifier and eventListenerControllerIdentifier
+    const uiController = new UIController(uiIdentifier, iFrameControllerIdentifier, eventListenerControllerIdentifier);
 
     //Save it to the extensionWorkerController's specific uiControllers Map. We checked before
     //if the Map has any entry with the provided uiIdentifier so it is safe to set/insert here

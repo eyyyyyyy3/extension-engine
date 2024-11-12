@@ -1,14 +1,14 @@
-import { eventControllerIdentifier, iFrameControllerIdentifier, spaceZoneLocation } from "../types";
-import { EventController } from "./event-controller";
+import { eventListenerControllerIdentifier, iFrameControllerIdentifier, spaceZoneLocation } from "../types";
+import { EventListenerController } from "./event-listener-controller";
 
 export class IFrameController {
   static #currentIdentifier: number = 0;
-  eventControllers: Map<eventControllerIdentifier, EventController>;
+  eventListenerControllers: Map<eventListenerControllerIdentifier, EventListenerController>;
   identifier: iFrameControllerIdentifier;
   iFrame: HTMLIFrameElement;
   spaceZoneLocation: spaceZoneLocation;
   constructor(iFrame: HTMLIFrameElement, spaceZoneLocation: spaceZoneLocation) {
-    this.eventControllers = new Map<eventControllerIdentifier, EventController>;
+    this.eventListenerControllers = new Map<eventListenerControllerIdentifier, EventListenerController>;
     this.identifier = IFrameController.#currentIdentifier.toString();
     IFrameController.#currentIdentifier += 1;
     this.iFrame = iFrame;
