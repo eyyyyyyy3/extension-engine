@@ -331,6 +331,10 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
       const abortController = new AbortController();
       window.addEventListener("message", (ev) => {
         if (ev.source === iFrame.contentWindow) {
+          //Instead of just returning the ev.data
+          //this could be changed to Comlink.transferHandlers
+          //which would allow us to return more data in
+          //a more structured way
           listener(ev.data);
         }
       }, { signal: abortController.signal });
