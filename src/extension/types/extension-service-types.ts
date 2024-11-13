@@ -1,12 +1,14 @@
 import { Comlink, endpointRightIdentifier, extensionIdentifier, spaceIdentifier, zoneIdentifier } from "./extension-types";
 
 export type eventListenerControllerIdentifier = number;
+export type eventTargetControllerIdentifier = number;
 export type iFrameControllerIdentifier = string;
 export type extensionHostControllerIdentifier = number;
 
 export type spaceZoneLocation = [spaceIdentifier, zoneIdentifier];
 export type spaceZones = [spaceIdentifier, zoneIdentifier[]];
 export type iFrameLocation = [extensionHostControllerIdentifier, iFrameControllerIdentifier];
+export type iFrameLocationIdentifier = string;
 
 export namespace NSExtensionService {
 

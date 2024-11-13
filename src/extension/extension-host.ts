@@ -179,17 +179,20 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     extension.state = "initializing";
 
     //We create a controller and safe the worker as well as the extensionWorkerEndpoint
-    const controller = new ExtensionWorkerController(worker, extensionWorkerEndpoint);
+    const extensionWorkerController = new ExtensionWorkerController(worker, extensionWorkerEndpoint);
 
     //Saving cross identifier references
-    controller.endpointRightIdentifier = endpointRight.identifier;
-    endpointRight.extensionWorkerControllerIdentifier = controller.identifier;
+    //extensionWorkerController.endpointRightIdentifier safes the reference to the endpoint that will be exposed to the extension-worker
+    extensionWorkerController.endpointRightIdentifier = endpointRight.identifier;
+    //endpointRight.extensionWorkerControllerIdentifier safes the reference to the extensionWorkerController which is responsible for managing the endpoint
+    endpointRight.extensionWorkerControllerIdentifier = extensionWorkerController.identifier;
 
-    controller.extensionIdentifier = extension.identifier;
-    extension.extensionWorkerControllerIdentifier = controller.identifier;
+    //TODO: Add comment here
+    extensionWorkerController.extensionIdentifier = extension.identifier;
+    extension.extensionWorkerControllerIdentifier = extensionWorkerController.identifier;
 
     //We add the controller and the endpoint we created to their own Maps
-    this.#extensionWorkerControllers.set(controller.identifier, controller);
+    this.#extensionWorkerControllers.set(extensionWorkerController.identifier, extensionWorkerController);
     this.#extensionWorkerEndpoints.set(endpointRight.identifier, endpointRight);
 
     //After all is done and set we run the Extension.
@@ -220,7 +223,7 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     if (extensionWorkerController === undefined || extensionWorkerController.endpointRightIdentifier === undefined) return false;
 
     //Let the extension know it is being shut down
-    await extensionWorkerController.extensionWorkerEndpoint.unloadExtension();
+    await extensionWorkerController.unloadExtension();
     for (const [_, uiController] of extensionWorkerController.uiControllers) {
       //Just deleting without checking if it worked cause we are already doing the thing
       //Deleting the IFrame also deletes all its attached eventListeners
@@ -395,7 +398,7 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     if (extensionWorkerController === undefined) return false;
 
     //Check if the ui is already loaded and if it is return false
-    if (extensionWorkerController.uiControllers.has(uiIdentifier)) return false;
+    if (extensionWorkerController.hasUIController(uiIdentifier)) return false;
 
     //The failing of this should actually be impossible
     if (extensionWorkerController.extensionIdentifier === undefined) return false;
@@ -431,14 +434,7 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
       return false;
     }
 
-    //Create an uiController which holds the iFrameControllerIdentifier and eventListenerControllerIdentifier
-    const uiController = new UIController(uiIdentifier, iFrameControllerIdentifier, eventListenerControllerIdentifier);
-
-    //Save it to the extensionWorkerController's specific uiControllers Map. We checked before
-    //if the Map has any entry with the provided uiIdentifier so it is safe to set/insert here
-    extensionWorkerController.uiControllers.set(uiController.identifier, uiController);
-    //We are done
-    return true;
+    return extensionWorkerController.registerUIController(uiIdentifier, iFrameControllerIdentifier, eventListenerControllerIdentifier);
   }
 
   async removeUI(uiIdentifier: uiIdentifier, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
@@ -456,17 +452,17 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     if (extensionWorkerController === undefined) return false;
 
     //Get the UIController from our extensionWorkerController's uiControllers Map
-    const uiController = extensionWorkerController.uiControllers.get(uiIdentifier);
+    const uiController = extensionWorkerController.getUIController(uiIdentifier);
     //Check if it exists and if it does not return false as this means that there is not any UI
     //loaded with that identifier
-    if (uiController === undefined) return false;
+    if (uiController === null) return false;
 
 
     //Remove the created IFrame (and with it all its listeners and space registries);
     if (!await this.#extensionServiceEndpointRight.removeIFrame(uiController.iFrameControllerIdentifier)) return false;
 
     //Remove the uiController from our extensionWorkerController's uiControllers Map and return that result
-    return extensionWorkerController.uiControllers.delete(uiController.identifier);
+    return extensionWorkerController.removeUICotroller(uiController.identifier);
   }
 
   async postMessageUI(uiIdentifier: uiIdentifier, message: any, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
@@ -484,10 +480,10 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     if (extensionWorkerController === undefined) return false;
 
     //Get the UIController from our extensionWorkerController's uiControllers Map
-    const uiController = extensionWorkerController.uiControllers.get(uiIdentifier);
+    const uiController = extensionWorkerController.getUIController(uiIdentifier);
     //Check if it exists and if it does not return false as this means that there is not any UI
     //loaded with that identifier
-    if (uiController === undefined) return false;
+    if (uiController === null) return false;
 
 
     //PostMessage the data to it and return whether it was successful or not

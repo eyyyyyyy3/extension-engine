@@ -32,6 +32,7 @@ export const schema = z.object({
     (val) => val.endsWith(".png"),
     { message: "[MANIFEST] The icon file has to end with .png!" }
   ),                                                                              //The path to the icon of the extension. Check size later. The format is png
+  //TODO: Add the autoLoad functionality
   autoLoad: z.boolean().optional().default(false),                                //Should the extension be loaded automatically? Default: false
   ui: z.record(z.string().refine(
     (val) => val.endsWith(".html"),

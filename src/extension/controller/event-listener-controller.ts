@@ -10,4 +10,8 @@ export class EventListenerController {
 
     this.abortController = abortController;
   }
+
+  abort(reason?: any): void {
+    this.abortController.abort(reason);
+  }
 }
