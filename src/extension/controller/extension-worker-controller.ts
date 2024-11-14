@@ -34,13 +34,13 @@ export class ExtensionWorkerController implements NSExtensionWorker.IEndpointLef
     return this.extensionWorkerEndpoint.initializeExtension();
   }
 
-  hasUIController(uiIdentifier: uiIdentifier): boolean {
+  hasUI(uiIdentifier: uiIdentifier): boolean {
     return this.uiControllers.has(uiIdentifier);
   }
 
-  registerUIController(uiIdentifier: uiIdentifier, iFrameControllerIdentifier: iFrameControllerIdentifier, eventListenerControllerIdentifier: eventListenerControllerIdentifier): boolean {
+  registerUI(uiIdentifier: uiIdentifier, iFrameControllerIdentifier: iFrameControllerIdentifier, eventListenerControllerIdentifier: eventListenerControllerIdentifier): boolean {
     //If the UIController already exists we return false
-    if (this.hasUIController(uiIdentifier)) return false;
+    if (this.hasUI(uiIdentifier)) return false;
 
     //Create an uiController which holds the iFrameControllerIdentifier and eventListenerControllerIdentifier
     const uiController = new UIController(uiIdentifier, iFrameControllerIdentifier, eventListenerControllerIdentifier);
@@ -52,7 +52,7 @@ export class ExtensionWorkerController implements NSExtensionWorker.IEndpointLef
     return true;
   }
 
-  removeUICotroller(uiIdentifier: uiIdentifier): boolean {
+  removeUI(uiIdentifier: uiIdentifier): boolean {
     return this.uiControllers.delete(uiIdentifier);
   }
 

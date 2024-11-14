@@ -398,7 +398,7 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     if (extensionWorkerController === undefined) return false;
 
     //Check if the ui is already loaded and if it is return false
-    if (extensionWorkerController.hasUIController(uiIdentifier)) return false;
+    if (extensionWorkerController.hasUI(uiIdentifier)) return false;
 
     //The failing of this should actually be impossible
     if (extensionWorkerController.extensionIdentifier === undefined) return false;
@@ -434,7 +434,7 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
       return false;
     }
 
-    return extensionWorkerController.registerUIController(uiIdentifier, iFrameControllerIdentifier, eventListenerControllerIdentifier);
+    return extensionWorkerController.registerUI(uiIdentifier, iFrameControllerIdentifier, eventListenerControllerIdentifier);
   }
 
   async removeUI(uiIdentifier: uiIdentifier, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
@@ -462,7 +462,7 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     if (!await this.#extensionServiceEndpointRight.removeIFrame(uiController.iFrameControllerIdentifier)) return false;
 
     //Remove the uiController from our extensionWorkerController's uiControllers Map and return that result
-    return extensionWorkerController.removeUICotroller(uiController.identifier);
+    return extensionWorkerController.removeUI(uiController.identifier);
   }
 
   async postMessageUI(uiIdentifier: uiIdentifier, message: any, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {

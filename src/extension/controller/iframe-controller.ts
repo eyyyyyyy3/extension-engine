@@ -38,13 +38,13 @@ export class IFrameController {
   }
 
   removeListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier): boolean {
-    if (!this.hasListenerController(eventListenerControllerIdentifier)) return false;
+    if (!this.hasListener(eventListenerControllerIdentifier)) return false;
 
     this.eventListenerControllers.get(eventListenerControllerIdentifier)!.abort();
     return this.eventListenerControllers.delete(eventListenerControllerIdentifier);
   }
 
-  hasListenerController(eventListenerControllerIdentifier: eventListenerControllerIdentifier) {
+  hasListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier) {
     return this.eventListenerControllers.has(eventListenerControllerIdentifier);
   }
 

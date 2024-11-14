@@ -53,13 +53,19 @@ class EventTargetController extends EventTarget {
   }
 
   removeListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier): boolean {
-    if (!this.hasListenerController(eventListenerControllerIdentifier)) return false;
+    if (!this.hasListener(eventListenerControllerIdentifier)) return false;
 
     this.eventListenerControllers.get(eventListenerControllerIdentifier)!.abort();
     return this.eventListenerControllers.delete(eventListenerControllerIdentifier);
   }
 
-  hasListenerController(eventListenerControllerIdentifier: eventListenerControllerIdentifier) {
+  hasListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier) {
     return this.eventListenerControllers.has(eventListenerControllerIdentifier);
+  }
+
+  getListenerController(eventListenerControllerIdentifier: eventListenerControllerIdentifier): EventListenerController | null {
+    const eventListenerController = this.eventListenerControllers.get(eventListenerControllerIdentifier);
+    if (eventListenerController === undefined) return null;
+    return eventListenerController;
   }
 }
