@@ -87,14 +87,14 @@ export class ExtensionHostController implements NSExtensionHost.IEndpointLeft {
     const iFrameController = this.iFrameControllers.get(iFrameControllerIdentifier);
     if (iFrameController === undefined) return null;
 
-    return iFrameController.addEventListener(listener);
+    return iFrameController.registerListener(listener);
   }
 
   removeEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventListenerControllerIdentifier: eventListenerControllerIdentifier): boolean {
     const iFrameController = this.iFrameControllers.get(iFrameControllerIdentifier);
     if (iFrameController === undefined) return false;
 
-    return iFrameController.removeEventListener(eventListenerControllerIdentifier);
+    return iFrameController.removeListener(eventListenerControllerIdentifier);
   }
 
   postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, message: any): boolean {

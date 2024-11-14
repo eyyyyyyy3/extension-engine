@@ -16,7 +16,7 @@ export class IFrameController {
     this.spaceZoneLocation = spaceZoneLocation;
   }
 
-  addEventListener(listener: ((data: any) => any) & Comlink.ProxyMarked): eventListenerControllerIdentifier {
+  registerListener(listener: ((data: any) => any) & Comlink.ProxyMarked): eventListenerControllerIdentifier {
     const abortController = new AbortController();
     //Because IFrames can only live inside of the main thread anyways its okay
     //to access the window object inside of the controller
@@ -37,14 +37,14 @@ export class IFrameController {
     return eventListenerController.identifier;
   }
 
-  removeEventListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier): boolean {
-    if (!this.hasEventListenerController(eventListenerControllerIdentifier)) return false;
+  removeListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier): boolean {
+    if (!this.hasListenerController(eventListenerControllerIdentifier)) return false;
 
     this.eventListenerControllers.get(eventListenerControllerIdentifier)!.abort();
     return this.eventListenerControllers.delete(eventListenerControllerIdentifier);
   }
 
-  hasEventListenerController(eventListenerControllerIdentifier: eventListenerControllerIdentifier) {
+  hasListenerController(eventListenerControllerIdentifier: eventListenerControllerIdentifier) {
     return this.eventListenerControllers.has(eventListenerControllerIdentifier);
   }
 

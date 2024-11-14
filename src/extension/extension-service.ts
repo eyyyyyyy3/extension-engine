@@ -264,7 +264,7 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     const iFrameController = extensionHostController.iFrameControllers.get(iFrameControllerIdentifier);
     if (iFrameController === undefined) return null;
 
-    return iFrameController.addEventListener(listener);
+    return iFrameController.registerListener(listener);
   }
 
   removeEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventListenerControllerIdentifier: eventListenerControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean {
@@ -280,7 +280,7 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     const iFrameController = extensionHostController.iFrameControllers.get(iFrameControllerIdentifier);
     if (iFrameController === undefined || !iFrameController.eventListenerControllers.has(eventListenerControllerIdentifier)) return false;
 
-    return iFrameController.removeEventListener(eventListenerControllerIdentifier);
+    return iFrameController.removeListener(eventListenerControllerIdentifier);
   }
 
   postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, message: any, endpointRightIdentifier?: endpointRightIdentifier): boolean {
