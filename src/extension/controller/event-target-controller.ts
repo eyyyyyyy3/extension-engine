@@ -2,20 +2,19 @@ import * as Comlink from "comlink";
 import { eventIdentifier, eventListenerControllerIdentifier } from "../types";
 import { EventListenerController } from "./event-listener-controller";
 
-//TODO: Continue here. Implement the customEvent handler
 class EventTargetController extends EventTarget {
-  events: Set<string>;
+  events: Map<eventIdentifier, Set<eventListenerControllerIdentifier>>;
   eventListenerControllers: Map<eventListenerControllerIdentifier, EventListenerController>;
   constructor() {
     super();
-    this.events = new Set<eventIdentifier>();
+    this.events = new Map<eventIdentifier, Set<eventListenerControllerIdentifier>>();
     this.eventListenerControllers = new Map<eventListenerControllerIdentifier, EventListenerController>();
   }
 
   registerEvent(event: eventIdentifier): boolean {
     //If the event already exists we return false
-    if (this.events.has(event)) return false;
-    this.events.add(event);
+    if (this.hasEvent(event)) return false;
+    this.events.set(event, new Set<eventListenerControllerIdentifier>());
     return true;
   }
 
@@ -27,10 +26,24 @@ class EventTargetController extends EventTarget {
 
   removeEvent(event: eventIdentifier): boolean {
     //If the event does not exist we return false
-    if (!this.events.has(event)) return false;
-    this.events.delete(event);
-    //Remove all the eventListeners that are attached to the event
-    return true;
+    if (!this.hasEvent(event)) return false;
+    //We already checked if the event exists so we just use the "!" operator here
+    //We get the Set of eventListenerControllerIdentifiers of the specified event which
+    //is to be removed
+    const eventListenerControllerIdentifiers = this.events.get(event)!.values();
+
+    //We iterate over all the eventListenerControllerIdentifiers of the event and call
+    //the removeListener function on them
+    for (const eventListenerControllerIdentifier of eventListenerControllerIdentifiers) {
+      if (!this.removeListener(eventListenerControllerIdentifier)) console.error("[EVENT-TARGET-CONTROLLER] Could not remove the listener.");
+    }
+
+    //At the end we delete the event from our events Map
+    return this.events.delete(event);
+  }
+
+  hasEvent(event: eventIdentifier): boolean {
+    return this.events.has(event);
   }
 
   registerListener(event: eventIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked): eventListenerControllerIdentifier {
