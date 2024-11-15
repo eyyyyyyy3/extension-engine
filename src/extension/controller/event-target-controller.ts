@@ -46,9 +46,14 @@ export class EventTargetController extends EventTarget {
     return this.events.has(event);
   }
 
-  //Rework this. Currently we dont save wo registered the listener.
-  //The registration should actually be inside of the ExtensionWorkerController
-  registerListener(event: eventIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked): eventListenerControllerIdentifier {
+  getEvents(): eventIdentifier[] {
+    return Array.from(this.events.keys());
+  }
+
+  registerListener(event: eventIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked): eventListenerControllerIdentifier | null {
+    //If the event does not exist we return null
+    if (!this.hasEvent(event)) return null;
+
     const abortController = new AbortController();
 
     super.addEventListener(event, (ev) => {
@@ -91,5 +96,4 @@ export class EventTargetController extends EventTarget {
     if (eventListenerController === undefined) return null;
     return eventListenerController;
   }
-  /////////////////////////////////////////////////////////////////////////////////////////////
 }

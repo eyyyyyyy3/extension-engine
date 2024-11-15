@@ -49,7 +49,6 @@ export class EndpointLeft implements NSExtensionHost.IEndpointLeft {
   //there is no need for any identifier.
   #extensionHost: ExtensionHost;
   constructor(extensionHost: ExtensionHost) {
-
     this.#extensionHost = extensionHost;
   }
 
@@ -72,15 +71,22 @@ export class EndpointLeft implements NSExtensionHost.IEndpointLeft {
   registerEvent(event: eventIdentifier): Promise<boolean> {
     return this.#extensionHost.registerEvent(event);
   }
+
   emitEvent(event: eventIdentifier, data?: any): Promise<boolean> {
     return this.#extensionHost.emitEvent(event, data);
   }
+
   removeEvent(event: eventIdentifier): Promise<boolean> {
     return this.#extensionHost.removeEvent(event);
 
   }
-  hasEvent(event: eventIdentifier): Promise<boolean> {
-    return this.#extensionHost.hasEvent(event);
+
+  hasEventEL(event: eventIdentifier): Promise<boolean> {
+    return this.#extensionHost.hasEventEL(event);
+  }
+
+  getEventsEL(): Promise<eventIdentifier[]> {
+    return this.#extensionHost.getEventsEL();
   }
 
 }
@@ -134,7 +140,14 @@ export class EndpointRight implements NSExtensionHost.IEndpointRight {
   hasListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier): Promise<boolean> {
     return this.#extensionHost.hasListener(eventListenerControllerIdentifier, this.#identifier);
   }
-  //TODO: Continue Here. add the eventTarget functions to the service and the worker
+
+  hasEventER(event: eventIdentifier): Promise<boolean> {
+    return this.#extensionHost.hasEventER(event, this.#identifier);
+  }
+
+  getEventsER(): Promise<eventIdentifier[] | null> {
+    return this.#extensionHost.getEventsER(this.#identifier);
+  }
 }
 
 class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IEndpointRight {
@@ -250,9 +263,9 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
       extension.state !== "active") return false;
 
     //Get the controller associated with the extension
-    const extensionWorkerController = this.#extensionWorkerControllers.get(extension.extensionWorkerControllerIdentifier);
+    const extensionWorkerController = this.getExtensionWorkerController(extension.extensionWorkerControllerIdentifier);
     //Check if it is actually valid and if there is an endpointRightIdentifier (which there should be)
-    if (extensionWorkerController === undefined || extensionWorkerController.endpointRightIdentifier === undefined) return false;
+    if (extensionWorkerController === null || extensionWorkerController.endpointRightIdentifier === undefined) return false;
 
     //Let the extension know it is being shut down
     await extensionWorkerController.unloadExtension();
@@ -417,17 +430,8 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
   }
 
   async registerUI(uiIdentifier: uiIdentifier, space: spaceIdentifier, zone: zoneIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
-    //There should be an endpointRightIdentifier
-    if (endpointRightIdentifier === undefined) return false;
-
-    //Get the endpoint from our Map
-    const endpoint = this.#extensionWorkerEndpoints.get(endpointRightIdentifier);
-    //Check if it exists and check if the extensionWorkerControllerIdentifier exists
-    if (endpoint === undefined || endpoint.extensionWorkerControllerIdentifier === undefined) return false;
-    //Get the extensionWorkerController
-    const extensionWorkerController = this.#extensionWorkerControllers.get(endpoint.extensionWorkerControllerIdentifier);
-    //Check if it exists
-    if (extensionWorkerController === undefined) return false;
+    const extensionWorkerController = this.getExtensionWorkerControllerOverEndpointIdentifier(endpointRightIdentifier);
+    if (extensionWorkerController === null) return false;
 
     //Check if the ui is already loaded and if it is return false
     if (this.hasUI(uiIdentifier)) return false;
@@ -477,18 +481,8 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
   }
 
   async removeUI(uiIdentifier: uiIdentifier, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
-    //There should be an endpointRightIdentifier
-    if (endpointRightIdentifier === undefined) return false;
-
-    //Get the endpoint from our Map
-    const endpoint = this.#extensionWorkerEndpoints.get(endpointRightIdentifier);
-    //Check if it exists and check if the extensionWorkerControllerIdentifier exists
-    if (endpoint === undefined || endpoint.extensionWorkerControllerIdentifier === undefined) return false;
-
-    //Get the extensionWorkerController
-    const extensionWorkerController = this.#extensionWorkerControllers.get(endpoint.extensionWorkerControllerIdentifier);
-    //Check if it exists
-    if (extensionWorkerController === undefined) return false;
+    const extensionWorkerController = this.getExtensionWorkerControllerOverEndpointIdentifier(endpointRightIdentifier);
+    if (extensionWorkerController === null) return false;
 
     //Get the UIController from our extensionWorkerController's uiControllers Map
     const uiController = this.getUIController(uiIdentifier);
@@ -507,18 +501,8 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
   }
 
   async postMessageUI(uiIdentifier: uiIdentifier, message: any, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
-    //There should be an endpointRightIdentifier
-    if (endpointRightIdentifier === undefined) return false;
-
-    //Get the endpoint from our Map
-    const endpoint = this.#extensionWorkerEndpoints.get(endpointRightIdentifier);
-    //Check if it exists and check if the extensionWorkerControllerIdentifier exists
-    if (endpoint === undefined || endpoint.extensionWorkerControllerIdentifier === undefined) return false;
-
-    //Get the extensionWorkerController
-    const extensionWorkerController = this.#extensionWorkerControllers.get(endpoint.extensionWorkerControllerIdentifier);
-    //Check if it exists
-    if (extensionWorkerController === undefined) return false;
+    const extensionWorkerController = this.getExtensionWorkerControllerOverEndpointIdentifier(endpointRightIdentifier);
+    if (extensionWorkerController === null) return false;
 
     //Get the UIController from our extensionWorkerController's uiControllers Map
     const uiController = this.getUIController(uiIdentifier);
@@ -546,32 +530,34 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
   }
 
   async removeEvent(event: eventIdentifier): Promise<boolean> {
+    //TODO: Continue here.
+    //When removing the event all the references to the listener
+    //inside of the workers should be removed too.
+    //Either add a reference to the extension-host (and thus
+    //to keep it consistent, add a reference to extension-xxx 
+    //to every controller which is referenced by extenion-xxx)
+    //or just dont do it and tell the user that the reference might be invalid.
     return this.#eventTarget.removeEvent(event);
   }
 
-  async hasEvent(event: eventIdentifier): Promise<boolean> {
+  async hasEventEL(event: eventIdentifier): Promise<boolean> {
     return this.#eventTarget.hasEvent(event);
+  }
+
+  async getEventsEL(): Promise<eventIdentifier[]> {
+    return this.#eventTarget.getEvents();
   }
 
 
   async registerListener(event: eventIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): Promise<eventListenerControllerIdentifier | null> {
-    //There should be an endpointRightIdentifier
-    if (endpointRightIdentifier === undefined) return null;
-
-    //Get the endpoint from our Map
-    const endpoint = this.#extensionWorkerEndpoints.get(endpointRightIdentifier);
-    //Check if it exists and check if the extensionWorkerControllerIdentifier exists
-    if (endpoint === undefined || endpoint.extensionWorkerControllerIdentifier === undefined) return null;
-
-    //Get the extensionWorkerController
-    const extensionWorkerController = this.#extensionWorkerControllers.get(endpoint.extensionWorkerControllerIdentifier);
-    //Check if it exists
-    if (extensionWorkerController === undefined) return null;
+    const extensionWorkerController = this.getExtensionWorkerControllerOverEndpointIdentifier(endpointRightIdentifier);
+    if (extensionWorkerController === null) return null;
 
     const eventListenerControllerIdentifier = this.#eventTarget.registerListener(event, listener);
+    if (eventListenerControllerIdentifier === null) return null;
 
     const hasEventListenerControllerIdentifierRegistered = extensionWorkerController.registerEventListenerControllerIdentifier(eventListenerControllerIdentifier);
-    //TODO: In every case where the extension-xxx-controllr could not register, we have to remove everything
+    //TODO: In every case where the extension-xxx-controller could not register, we have to remove everything
     //we did above
     if (!hasEventListenerControllerIdentifierRegistered) return null;
 
@@ -579,19 +565,8 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
   }
 
   async removeListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
-    //There should be an endpointRightIdentifier
-    if (endpointRightIdentifier === undefined) return false;
-
-    //Get the endpoint from our Map
-    const endpoint = this.#extensionWorkerEndpoints.get(endpointRightIdentifier);
-    //Check if it exists and check if the extensionWorkerControllerIdentifier exists
-    if (endpoint === undefined || endpoint.extensionWorkerControllerIdentifier === undefined) return false;
-
-    //Get the extensionWorkerController
-    const extensionWorkerController = this.#extensionWorkerControllers.get(endpoint.extensionWorkerControllerIdentifier);
-    //Check if it exists
-    if (extensionWorkerController === undefined) return false;
-
+    const extensionWorkerController = this.getExtensionWorkerControllerOverEndpointIdentifier(endpointRightIdentifier);
+    if (extensionWorkerController === null) return false;
 
     const wasEventListenerControllerIdentifierRemoved = extensionWorkerController.removeEventListenerControllerIdentifier(eventListenerControllerIdentifier);
     if (!wasEventListenerControllerIdentifierRemoved) return false;
@@ -600,20 +575,8 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
   }
 
   async hasListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
-    //TODO: Refactor this thang
-
-    //There should be an endpointRightIdentifier
-    if (endpointRightIdentifier === undefined) return false;
-
-    //Get the endpoint from our Map
-    const endpoint = this.#extensionWorkerEndpoints.get(endpointRightIdentifier);
-    //Check if it exists and check if the extensionWorkerControllerIdentifier exists
-    if (endpoint === undefined || endpoint.extensionWorkerControllerIdentifier === undefined) return false;
-
-    //Get the extensionWorkerController
-    const extensionWorkerController = this.#extensionWorkerControllers.get(endpoint.extensionWorkerControllerIdentifier);
-    //Check if it exists
-    if (extensionWorkerController === undefined) return false;
+    const extensionWorkerController = this.getExtensionWorkerControllerOverEndpointIdentifier(endpointRightIdentifier);
+    if (extensionWorkerController === null) return false;
 
     //First we check if the extensionHostController has that Identifier
     const hasEventListenerControllerIdentifier = extensionWorkerController.hasEventListenerControllerIdentifier(eventListenerControllerIdentifier);
@@ -621,6 +584,20 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
 
     //Then to make sure we check eventTargets internal Map
     return this.#eventTarget.hasListener(eventListenerControllerIdentifier);
+  }
+
+  async hasEventER(event: eventIdentifier, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
+    const extensionWorkerController = this.getExtensionWorkerControllerOverEndpointIdentifier(endpointRightIdentifier);
+    if (extensionWorkerController === null) return false;
+
+    return this.#eventTarget.hasEvent(event);
+  }
+
+  async getEventsER(endpointRightIdentifier?: endpointRightIdentifier): Promise<eventIdentifier[] | null> {
+    const extensionWorkerController = this.getExtensionWorkerControllerOverEndpointIdentifier(endpointRightIdentifier);
+    if (extensionWorkerController === null) return null;
+
+    return this.#eventTarget.getEvents();
   }
 
   hasUI(uiIdentifier: uiIdentifier): boolean {
@@ -631,6 +608,26 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
     const uiController = this.#uiControllers.get(uiIdentifier);
     if (uiController === undefined) return null;
     return uiController;
+  }
+
+  getExtensionWorkerController(extensionWorkerControllerIdentifier: extensionWorkerControllerIdentifier): ExtensionWorkerController | null {
+    const extensionWorkerController = this.#extensionWorkerControllers.get(extensionWorkerControllerIdentifier);
+    if (extensionWorkerController === undefined) return null;
+    return extensionWorkerController;
+  }
+
+  getExtensionWorkerControllerOverEndpointIdentifier(endpointRightIdentifier?: endpointRightIdentifier): ExtensionWorkerController | null {
+    //There should be an endpointRightIdentifier
+    if (endpointRightIdentifier === undefined) return null;
+
+    //Get the endpoint from our Map
+    const endpoint = this.#extensionWorkerEndpoints.get(endpointRightIdentifier);
+    //Check if it exists and check if the extensionWorkerControllerIdentifier exists
+    if (endpoint === undefined || endpoint.extensionWorkerControllerIdentifier === undefined) return null;
+
+    //Get the extensionWorkerController
+    const extensionWorkerController = this.getExtensionWorkerController(endpoint.extensionWorkerControllerIdentifier);
+    return extensionWorkerController;
   }
 
 }

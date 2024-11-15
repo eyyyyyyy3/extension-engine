@@ -1,4 +1,4 @@
-import { Comlink, endpointRightIdentifier, extensionIdentifier, spaceIdentifier, zoneIdentifier } from "./extension-types";
+import { Comlink, endpointRightIdentifier, eventIdentifier, extensionIdentifier, spaceIdentifier, zoneIdentifier } from "./extension-types";
 
 export type eventListenerControllerIdentifier = number;
 export type eventTargetControllerIdentifier = number;
@@ -17,6 +17,14 @@ export namespace NSExtensionService {
     //loadedExtensions(extensionHostControllerIdentifier: extensionHostControllerIdentifier);
     loadExtension(extensionIdentifier: extensionIdentifier, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean>;
     unloadExtension(extensionIdentifier: extensionIdentifier, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean>;
+
+    registerEvent(event: eventIdentifier, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean>;
+    emitEvent(event: eventIdentifier, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean>;
+    emitDatafulEvent(event: eventIdentifier, data: any, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean>;
+    removeEvent(event: eventIdentifier, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean>;
+
+    hasEvent(event: eventIdentifier, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean>;
+    getEvents(extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<eventIdentifier[] | null>;
 
     registerSpace(spaceIdentifier: spaceIdentifier, zoneIdentifiers?: [zoneIdentifier]): boolean;
     registerZone(spaceIdentifier: spaceIdentifier, zoneIdentifier: zoneIdentifier): boolean;

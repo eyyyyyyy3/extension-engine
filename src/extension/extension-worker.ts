@@ -1,7 +1,7 @@
 import * as Comlink from "comlink";
 import * as ExtensionHost from "./extension-host";
 import { sendExposed, awaitExposed } from "./comlink-helper";
-import { NSExtensionWorker, spaceIdentifier, uiIdentifier, zoneIdentifier } from "./types";
+import { eventIdentifier, eventListenerControllerIdentifier, NSExtensionWorker, spaceIdentifier, uiIdentifier, zoneIdentifier } from "./types";
 
 
 
@@ -46,6 +46,26 @@ class EndpointRight implements NSExtensionWorker.IEndpointRight {
     return this.#extensionWorker.postMessageUI(uiIdentifier, message);
   }
 
+  registerListener(event: eventIdentifier, listener: ((data: any) => any)): Promise<eventListenerControllerIdentifier | null> {
+    return this.#extensionWorker.registerListener(event, listener);
+  }
+
+  removeListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier): Promise<boolean> {
+    return this.#extensionWorker.removeListener(eventListenerControllerIdentifier);
+  }
+
+  hasListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier): Promise<boolean> {
+    return this.#extensionWorker.hasListener(eventListenerControllerIdentifier);
+  }
+
+  hasEvent(event: eventIdentifier): Promise<boolean> {
+    return this.#extensionWorker.hasEvent(event);
+  }
+
+  getEvents(): Promise<eventIdentifier[] | null> {
+    return this.#extensionWorker.getEvents();
+  }
+
 }
 
 class ExtensionWorker implements NSExtensionWorker.IEndpointLeft, NSExtensionWorker.IEndpointRight {
@@ -75,7 +95,6 @@ class ExtensionWorker implements NSExtensionWorker.IEndpointLeft, NSExtensionWor
 
       //Remove the URL as it is not needed anymore
       URL.revokeObjectURL(entrypointURL);
-
 
       //PROFIT?!?!
       return true;
@@ -108,7 +127,7 @@ class ExtensionWorker implements NSExtensionWorker.IEndpointLeft, NSExtensionWor
   }
 
   registerUI(uiIdentifier: uiIdentifier, space: spaceIdentifier, zone: zoneIdentifier, listener: (data: any) => any): Promise<boolean> {
-    //The function will be passed across differen workers and for the callback to work it has to be a Comlink.proxy
+    //The function will be passed across different workers and for the callback to work it has to be a Comlink.proxy
     const proxyListener = Comlink.proxy(listener);
     return this.#extensionHostEndpointRight.registerUI(uiIdentifier, space, zone, proxyListener);
   }
@@ -119,6 +138,28 @@ class ExtensionWorker implements NSExtensionWorker.IEndpointLeft, NSExtensionWor
 
   postMessageUI(uiIdentifier: uiIdentifier, message: any): Promise<boolean> {
     return this.#extensionHostEndpointRight.postMessageUI(uiIdentifier, message);
+  }
+
+  registerListener(event: eventIdentifier, listener: ((data: any) => any)): Promise<eventListenerControllerIdentifier | null> {
+    //The function will be passed across different workers and for the callback to work it has to be a Comlink.proxy
+    const proxyListener = Comlink.proxy(listener);
+    return this.#extensionHostEndpointRight.registerListener(event, proxyListener);
+  }
+
+  removeListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier): Promise<boolean> {
+    return this.#extensionHostEndpointRight.removeListener(eventListenerControllerIdentifier);
+  }
+
+  hasListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier): Promise<boolean> {
+    return this.#extensionHostEndpointRight.hasListener(eventListenerControllerIdentifier);
+  }
+
+  hasEvent(event: eventIdentifier): Promise<boolean> {
+    return this.#extensionHostEndpointRight.hasEventER(event);
+  }
+
+  getEvents(): Promise<eventIdentifier[] | null> {
+    return this.#extensionHostEndpointRight.getEventsER();
   }
 
 }

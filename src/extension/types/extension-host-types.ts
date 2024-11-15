@@ -16,7 +16,9 @@ export namespace NSExtensionHost {
     registerEvent(event: eventIdentifier): Promise<boolean>;
     emitEvent(event: eventIdentifier, data?: any): Promise<boolean>;
     removeEvent(event: eventIdentifier): Promise<boolean>;
-    hasEvent(event: eventIdentifier): Promise<boolean>;
+
+    hasEventEL(event: eventIdentifier): Promise<boolean>;
+    getEventsEL(): Promise<eventIdentifier[] | null>;
   }
 
   export interface IEndpointRight {
@@ -27,5 +29,8 @@ export namespace NSExtensionHost {
     registerListener(event: eventIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): Promise<eventListenerControllerIdentifier | null>;
     removeListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean>;
     hasListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean>;
+
+    hasEventER(event: eventIdentifier, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean>;
+    getEventsER(endpointRightIdentifier?: endpointRightIdentifier): Promise<eventIdentifier[] | null>;
   }
 }

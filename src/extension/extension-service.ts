@@ -3,7 +3,7 @@ import { sendExposed, awaitExposed } from "./comlink-helper";
 import * as ExtensionHost from "./extension-host";
 import { acquireSDK } from "../sdk";
 import { ASDK } from "../sdk/abstracts/sdk";
-import { NSExtensionService, endpointRightIdentifier, eventListenerControllerIdentifier, extensionHostControllerIdentifier, iFrameControllerIdentifier, spaceIdentifier, spaceZoneLocation, spaceZones, zoneIdentifier } from "./types";
+import { NSExtensionService, endpointRightIdentifier, eventIdentifier, eventListenerControllerIdentifier, extensionHostControllerIdentifier, iFrameControllerIdentifier, spaceIdentifier, spaceZoneLocation, spaceZones, zoneIdentifier } from "./types";
 import { SpaceController } from "./controller/space-controller";
 import { ExtensionHostController } from "./controller/extension-host-controller";
 import { IFrameController } from "./controller/iframe-controller";
@@ -42,7 +42,30 @@ class EndpointLeft implements NSExtensionService.IEndpointLeft {
 
   unloadExtension(extensionIdentifier: string, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
     return this.#extensionService.unloadExtension(extensionIdentifier, extensionHostControllerIdentifier);
+  }
 
+  registerEvent(event: eventIdentifier, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
+    return this.#extensionService.registerEvent(event, extensionHostControllerIdentifier);
+  }
+
+  emitEvent(event: eventIdentifier, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
+    return this.#extensionService.emitEvent(event, extensionHostControllerIdentifier);
+  }
+
+  emitDatafulEvent(event: eventIdentifier, data: any, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
+    return this.#extensionService.emitDatafulEvent(event, data, extensionHostControllerIdentifier);
+  }
+
+  removeEvent(event: eventIdentifier, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
+    return this.#extensionService.removeEvent(event, extensionHostControllerIdentifier);
+  }
+
+  hasEvent(event: eventIdentifier, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
+    return this.#extensionService.hasEvent(event, extensionHostControllerIdentifier);
+  }
+
+  getEvents(extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<eventIdentifier[] | null> {
+    return this.#extensionService.getEvents(extensionHostControllerIdentifier);
   }
 
   registerSpace(spaceIdentifier: spaceIdentifier, zoneIdentifiers?: [zoneIdentifier]): boolean {
@@ -159,8 +182,8 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
   }
 
   registerIFrame(ui: File, spaceZoneLocation: spaceZoneLocation, endpointRightIdentifier?: endpointRightIdentifier): iFrameControllerIdentifier | null {
-    // There may be some kind of restriction to certain spaces
-    if (endpointRightIdentifier === undefined) return null;
+    const extensionHostController = this.getExtensionHostControllerOverEndpoint(endpointRightIdentifier);
+    if (extensionHostController === null) return null;
 
     //Extract the space and zone identifier
     const [spaceIdentifier, zoneIdentifier] = spaceZoneLocation;
@@ -172,17 +195,6 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
 
     //Check if there is a Set for that zone (which there should be if that zone was registered) and if there is none return null
     if (!spaceController.hasZone(zoneIdentifier)) return null;
-
-    //Get the endpoint
-    const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
-
-    //Check if it exists and if there is an extensionHostControllerIdentifier
-    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return null;
-
-    //Get the extensionHostController
-    const extensionHostController = this.getExtensionHostController(endpoint.extensionHostControllerIdentifier);
-    //Check if it exists and if not return null
-    if (extensionHostController === null) return null;
 
 
     //Create an iFrame
@@ -218,13 +230,7 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
   }
 
   removeIFrame(iFrameControllerIdentifier: iFrameControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean {
-    if (endpointRightIdentifier === undefined) return false;
-
-    const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
-
-    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
-
-    const extensionHostController = this.getExtensionHostController(endpoint.extensionHostControllerIdentifier);
+    const extensionHostController = this.getExtensionHostControllerOverEndpoint(endpointRightIdentifier);
     if (extensionHostController === null) return false;
 
     const iFrameController = this.getIFrameController(iFrameControllerIdentifier);
@@ -262,13 +268,9 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
   }
 
   removeIFrames(endpointRightIdentifier?: endpointRightIdentifier): boolean {
-    if (endpointRightIdentifier === undefined) return false;
-    const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
-
-    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
-
-    const extensionHostController = this.getExtensionHostController(endpoint.extensionHostControllerIdentifier);
+    const extensionHostController = this.getExtensionHostControllerOverEndpoint(endpointRightIdentifier);
     if (extensionHostController === null) return false;
+
     return this.#removeIFrames(extensionHostController);
   }
 
@@ -309,13 +311,7 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
 
 
   registerListener(iFrameControllerIdentifier: iFrameControllerIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): eventListenerControllerIdentifier | null {
-    if (endpointRightIdentifier === undefined) return null;
-
-    const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
-
-    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return null;
-
-    const extensionHostController = this.getExtensionHostController(endpoint.extensionHostControllerIdentifier);
+    const extensionHostController = this.getExtensionHostControllerOverEndpoint(endpointRightIdentifier);
     if (extensionHostController === null) return null;
 
     const iFrameController = this.getIFrameController(iFrameControllerIdentifier);
@@ -325,13 +321,7 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
   }
 
   removeListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventListenerControllerIdentifier: eventListenerControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean {
-    if (endpointRightIdentifier === undefined) return false;
-
-    const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
-
-    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
-
-    const extensionHostController = this.getExtensionHostController(endpoint.extensionHostControllerIdentifier);
+    const extensionHostController = this.getExtensionHostControllerOverEndpoint(endpointRightIdentifier);
     if (extensionHostController === null) return false;
 
     const iFrameController = this.getIFrameController(iFrameControllerIdentifier);
@@ -341,13 +331,7 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
   }
 
   postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, message: any, endpointRightIdentifier?: endpointRightIdentifier): boolean {
-    if (endpointRightIdentifier === undefined) return false;
-
-    const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
-
-    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
-
-    const extensionHostController = this.getExtensionHostController(endpoint.extensionHostControllerIdentifier);
+    const extensionHostController = this.getExtensionHostControllerOverEndpoint(endpointRightIdentifier);
     if (extensionHostController === null) return false;
 
     const iFrameController = this.getIFrameController(iFrameControllerIdentifier);
@@ -357,15 +341,10 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
   }
 
   getSpaces(endpointRightIdentifier?: endpointRightIdentifier): spaceZones[] | null {
-    //We take the endpointRightIdentifier as this may be used later on to add 
+    //We take the endpointRightIdentifier as this may be used later on to add
     //restrictions
-    if (endpointRightIdentifier === undefined) return null;
-
-    const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
-
-    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return null;
-
-    if (!this.#extensionHostControllers.has(endpoint.extensionHostControllerIdentifier)) return null;
+    const extensionHostController = this.getExtensionHostControllerOverEndpoint(endpointRightIdentifier);
+    if (extensionHostController === null) return null;
 
     //Creating an Array to hold all our spaces with their individual zones
     let spaces: spaceZones[] = new Array<spaceZones>(this.#spaceControllers.size);
@@ -383,13 +362,8 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
   hasSpaceZone(spaceZoneLocation: spaceZoneLocation, endpointRightIdentifier?: endpointRightIdentifier): boolean {
     //We take the endpointRightIdentifier as this may be used later on to add 
     //restrictions
-    if (endpointRightIdentifier === undefined) return false;
-
-    const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
-
-    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
-
-    if (!this.#extensionHostControllers.has(endpoint.extensionHostControllerIdentifier)) return false;
+    const extensionHostController = this.getExtensionHostControllerOverEndpoint(endpointRightIdentifier);
+    if (extensionHostController === null) return false;
 
     const [spaceIdentifier, zoneIdentifier] = spaceZoneLocation;
 
@@ -408,6 +382,16 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
   getExtensionHostController(extensionHostControllerIdentifier: extensionHostControllerIdentifier): ExtensionHostController | null {
     const extensionHostController = this.#extensionHostControllers.get(extensionHostControllerIdentifier);
     if (extensionHostController === undefined) return null;
+    return extensionHostController;
+  }
+
+  getExtensionHostControllerOverEndpoint(endpointRightIdentifier?: endpointRightIdentifier): ExtensionHostController | null {
+    if (endpointRightIdentifier === undefined) return null;
+    const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
+
+    if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return null;
+
+    const extensionHostController = this.getExtensionHostController(endpoint.extensionHostControllerIdentifier);
     return extensionHostController;
   }
 
@@ -489,6 +473,48 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     if (extensionHostController === null) return false;
 
     return extensionHostController.unloadExtension(extensionIdentifier);
+  }
+
+  async registerEvent(event: eventIdentifier, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
+    const extensionHostController = this.getExtensionHostController(extensionHostControllerIdentifier);
+    if (extensionHostController === null) return false;
+
+    return extensionHostController.registerEvent(event);
+  }
+
+  async emitEvent(event: eventIdentifier, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
+    const extensionHostController = this.getExtensionHostController(extensionHostControllerIdentifier);
+    if (extensionHostController === null) return false;
+
+    return extensionHostController.emitEvent(event);
+  }
+
+  async emitDatafulEvent(event: eventIdentifier, data: any, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
+    const extensionHostController = this.getExtensionHostController(extensionHostControllerIdentifier);
+    if (extensionHostController === null) return false;
+
+    return extensionHostController.emitEvent(event, data);
+  }
+
+  async removeEvent(event: eventIdentifier, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
+    const extensionHostController = this.getExtensionHostController(extensionHostControllerIdentifier);
+    if (extensionHostController === null) return false;
+
+    return extensionHostController.removeEvent(event);
+  }
+
+  async hasEvent(event: eventIdentifier, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
+    const extensionHostController = this.getExtensionHostController(extensionHostControllerIdentifier);
+    if (extensionHostController === null) return false;
+
+    return extensionHostController.hasEventEL(event);
+  }
+
+  async getEvents(extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<eventIdentifier[] | null> {
+    const extensionHostController = this.getExtensionHostController(extensionHostControllerIdentifier);
+    if (extensionHostController === null) return null;
+
+    return extensionHostController.getEventsEL();
   }
 
   registerSpace(spaceIdentifier: spaceIdentifier, zoneIdentifiers?: [zoneIdentifier]): boolean {
