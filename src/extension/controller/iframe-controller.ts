@@ -4,10 +4,11 @@ import { EventListenerController } from "./event-listener-controller";
 
 export class IFrameController {
   static #currentIdentifier: number = 0;
-  eventListenerControllers: Map<eventListenerControllerIdentifier, EventListenerController>;
   identifier: iFrameControllerIdentifier;
+  eventListenerControllers: Map<eventListenerControllerIdentifier, EventListenerController>;
   iFrame: HTMLIFrameElement;
   spaceZoneLocation: spaceZoneLocation;
+
   constructor(iFrame: HTMLIFrameElement, spaceZoneLocation: spaceZoneLocation) {
     this.eventListenerControllers = new Map<eventListenerControllerIdentifier, EventListenerController>;
     this.identifier = IFrameController.#currentIdentifier.toString();
@@ -42,6 +43,14 @@ export class IFrameController {
 
     this.eventListenerControllers.get(eventListenerControllerIdentifier)!.abort();
     return this.eventListenerControllers.delete(eventListenerControllerIdentifier);
+  }
+
+  removeListeners(): void {
+    for (const [_, eventListenerController] of this.eventListenerControllers) {
+      eventListenerController.abort();
+    }
+    this.eventListenerControllers.clear();
+    return;
   }
 
   hasListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier) {

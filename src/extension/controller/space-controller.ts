@@ -1,19 +1,19 @@
-import { spaceIdentifier, zoneIdentifier, iFrameLocation, iFrameLocationIdentifier } from "../types";
+import { iFrameControllerIdentifier, spaceIdentifier, zoneIdentifier } from "../types";
 
 export class SpaceController {
   identifier: spaceIdentifier;
   //Kinda collapsing the ZoneController as it just has the Set and its identifier
-  zones: Map<zoneIdentifier, Map<iFrameLocationIdentifier, iFrameLocation>>;
+  zones: Map<zoneIdentifier, Set<iFrameControllerIdentifier>>;
   constructor(identifier: spaceIdentifier) {
     this.identifier = identifier;
-    this.zones = new Map<zoneIdentifier, Map<iFrameLocationIdentifier, iFrameLocation>>();
+    this.zones = new Map<zoneIdentifier, Set<iFrameControllerIdentifier>>();
   }
 
   registerZone(zoneIdentifier: zoneIdentifier): boolean {
     //Check if the zone already exists. If it does, then return false
     if (this.hasZone(zoneIdentifier)) return false;
 
-    this.zones.set(zoneIdentifier, new Map<iFrameLocationIdentifier, iFrameLocation>());
+    this.zones.set(zoneIdentifier, new Set<iFrameControllerIdentifier>());
     return true;
   }
 
@@ -22,7 +22,7 @@ export class SpaceController {
       //Check if a zone with that name is already defined
       if (!this.hasZone(zoneIdentifier)) {
         //If there is none add one
-        this.zones.set(zoneIdentifier, new Map<iFrameLocationIdentifier, iFrameLocation>());
+        this.zones.set(zoneIdentifier, new Set<iFrameControllerIdentifier>());
       }
     }
     return true;
@@ -36,19 +36,17 @@ export class SpaceController {
     return Array.from(this.zones.keys());
   }
 
-  registerIFrameLocation(zoneIdentifier: zoneIdentifier, iFrameLocation: iFrameLocation): boolean {
-    const iFrameLocations = this.zones.get(zoneIdentifier);
-    if (iFrameLocations === undefined) return false;
-    const iFrameLocationIdentifier = iFrameLocation.join(".");
-    iFrameLocations.set(iFrameLocationIdentifier, iFrameLocation);
+  registerIFrameControllerIdentifier(zoneIdentifier: zoneIdentifier, iFrameControllerIdentifier: iFrameControllerIdentifier): boolean {
+    const iFrameControllerIdentifiers = this.zones.get(zoneIdentifier);
+    if (iFrameControllerIdentifiers === undefined) return false;
+    iFrameControllerIdentifiers.add(iFrameControllerIdentifier);
     return true;
   }
 
-  removeIFrameLocation(zoneIdentifier: zoneIdentifier, iFrameLocation: iFrameLocation): boolean {
-    const iFrameLocations = this.zones.get(zoneIdentifier);
-    if (iFrameLocations === undefined) return false;
-    const iFrameLocationIdentifier = iFrameLocation.join(".");
-    return iFrameLocations.delete(iFrameLocationIdentifier);
+  removeIFrameControllerIdentifier(zoneIdentifier: zoneIdentifier, iFrameControllerIdentifier: iFrameControllerIdentifier): boolean {
+    const iFrameControllerIdentifiers = this.zones.get(zoneIdentifier);
+    if (iFrameControllerIdentifiers === undefined) return false;
+    return iFrameControllerIdentifiers.delete(iFrameControllerIdentifier);
   }
 
 }

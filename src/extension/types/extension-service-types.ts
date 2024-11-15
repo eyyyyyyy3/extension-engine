@@ -7,8 +7,6 @@ export type extensionHostControllerIdentifier = number;
 
 export type spaceZoneLocation = [spaceIdentifier, zoneIdentifier];
 export type spaceZones = [spaceIdentifier, zoneIdentifier[]];
-export type iFrameLocation = [extensionHostControllerIdentifier, iFrameControllerIdentifier];
-export type iFrameLocationIdentifier = string;
 
 export namespace NSExtensionService {
 
@@ -35,8 +33,8 @@ export namespace NSExtensionService {
     registerIFrame(ui: File, spaceZoneLocation: spaceZoneLocation, endpointRightIdentifier?: endpointRightIdentifier): iFrameControllerIdentifier | null;
     removeIFrame(iFrameControllerIdentifier: iFrameControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean;
     removeIFrames(endpointRightIdentifier?: endpointRightIdentifier): boolean;
-    addEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): eventListenerControllerIdentifier | null;
-    removeEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventListenerControllerIdentifier: eventListenerControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean;
+    registerListener(iFrameControllerIdentifier: iFrameControllerIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): eventListenerControllerIdentifier | null;
+    removeListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventListenerControllerIdentifier: eventListenerControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean;
     postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, message: any, endpointRightIdentifier?: endpointRightIdentifier): boolean;
     getSpaces(endpointRightIdentifier?: endpointRightIdentifier): spaceZones[] | null;
     hasSpaceZone(spaceZoneLocation: spaceZoneLocation, endpointRightIdentifier?: endpointRightIdentifier): boolean;

@@ -3,7 +3,7 @@ import { sendExposed, awaitExposed } from "./comlink-helper";
 import * as ExtensionHost from "./extension-host";
 import { acquireSDK } from "../sdk";
 import { ASDK } from "../sdk/abstracts/sdk";
-import { NSExtensionService, endpointRightIdentifier, eventListenerControllerIdentifier, extensionHostControllerIdentifier, iFrameControllerIdentifier, iFrameLocation, iFrameLocationIdentifier, spaceIdentifier, spaceZoneLocation, spaceZones, zoneIdentifier } from "./types";
+import { NSExtensionService, endpointRightIdentifier, eventListenerControllerIdentifier, extensionHostControllerIdentifier, iFrameControllerIdentifier, spaceIdentifier, spaceZoneLocation, spaceZones, zoneIdentifier } from "./types";
 import { SpaceController } from "./controller/space-controller";
 import { ExtensionHostController } from "./controller/extension-host-controller";
 import { IFrameController } from "./controller/iframe-controller";
@@ -108,12 +108,12 @@ export class EndpointRight implements NSExtensionService.IEndpointRight {
     return this.#extensionService.removeIFrames(this.#identifier);
   }
 
-  addEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked): eventListenerControllerIdentifier | null {
-    return this.#extensionService.addEventListener(iFrameControllerIdentifier, listener, this.#identifier);
+  registerListener(iFrameControllerIdentifier: iFrameControllerIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked): eventListenerControllerIdentifier | null {
+    return this.#extensionService.registerListener(iFrameControllerIdentifier, listener, this.#identifier);
   }
 
-  removeEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventListenerControllerIdentifier: eventListenerControllerIdentifier): boolean {
-    return this.#extensionService.removeEventListener(iFrameControllerIdentifier, eventListenerControllerIdentifier, this.#identifier);
+  removeListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventListenerControllerIdentifier: eventListenerControllerIdentifier): boolean {
+    return this.#extensionService.removeListener(iFrameControllerIdentifier, eventListenerControllerIdentifier, this.#identifier);
   }
 
   postMessage(iFrameControllerIdentifier: iFrameControllerIdentifier, message: any): boolean {
@@ -140,12 +140,14 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
   #extensionServiceEndpoints: Map<endpointRightIdentifier, EndpointRight>;
   #extensionHostControllers: Map<extensionHostControllerIdentifier, ExtensionHostController>;
   #spaceControllers: Map<spaceIdentifier, SpaceController>;
+  #iFrameControllers: Map<iFrameControllerIdentifier, IFrameController>;
   #endpointLeft: EndpointLeft;
 
   constructor() {
     this.#extensionServiceEndpoints = new Map<endpointRightIdentifier, EndpointRight>();
     this.#extensionHostControllers = new Map<extensionHostControllerIdentifier, ExtensionHostController>();
     this.#spaceControllers = new Map<spaceIdentifier, SpaceController>();
+    this.#iFrameControllers = new Map<iFrameControllerIdentifier, IFrameController>();
 
     this.#endpointLeft = new EndpointLeft(this as ExtensionService);
 
@@ -163,10 +165,10 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     //Extract the space and zone identifier
     const [spaceIdentifier, zoneIdentifier] = spaceZoneLocation;
     //Get the spaceController
-    const spaceController = this.#spaceControllers.get(spaceIdentifier);
+    const spaceController = this.getSpaceController(spaceIdentifier);
 
     //Check if the space was registered and if it was not return null
-    if (spaceController === undefined) return null;
+    if (spaceController === null) return null;
 
     //Check if there is a Set for that zone (which there should be if that zone was registered) and if there is none return null
     if (!spaceController.hasZone(zoneIdentifier)) return null;
@@ -178,20 +180,41 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
     if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return null;
 
     //Get the extensionHostController
-    const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
+    const extensionHostController = this.getExtensionHostController(endpoint.extensionHostControllerIdentifier);
     //Check if it exists and if not return null
-    if (extensionHostController === undefined) return null;
+    if (extensionHostController === null) return null;
 
-    const iFrameControllerIdentifier = extensionHostController.registerIFrame(ui, spaceZoneLocation);
-    if (iFrameControllerIdentifier === null) return null;
 
-    const iFrameLocation: iFrameLocation = [extensionHostController.identifier, iFrameControllerIdentifier];
-    //Register the iFrameLocation to our zones
-    const isIFrameRegistered = spaceController.registerIFrameLocation(zoneIdentifier, iFrameLocation);
-    if (!isIFrameRegistered) return null;
+    //Create an iFrame
+    const iFrame = document.createElement("iframe");
+    //Assign it to an IFrameController and set the spaceZoneLocation for the iFrame
+    const iFrameController = new IFrameController(iFrame, spaceZoneLocation);
+    iFrame.id = iFrameController.identifier;
+
+    //TODO: Sandbox
+    //iFrame.sandbox
+
+    //Create a URL from the ui for our iFrame.src
+    const uiURL = URL.createObjectURL(ui);
+    //Assign it to the iFrame.src
+    iFrame.src = uiURL;
+
+    //Create an iFrameLocation for the zoneSet
+
+    //Add the iFrameController to our iFrameControllers Map
+    this.#iFrameControllers.set(iFrameController.identifier, iFrameController);
+
+
+    //Register the iFrameControllerIdentifier to our zones
+    let hasIFrameControllerIdentifierRegistered = extensionHostController.registerIFrameControllerIdentifier(iFrameController.identifier);
+    if (!hasIFrameControllerIdentifierRegistered) return null;
+
+    //Register the iFrameControllerIdentifier to our zones
+    hasIFrameControllerIdentifierRegistered = spaceController.registerIFrameControllerIdentifier(zoneIdentifier, iFrameController.identifier);
+    if (!hasIFrameControllerIdentifierRegistered) return null;
 
     //Return the iFrameController identifier
-    return iFrameControllerIdentifier;
+    return iFrameController.identifier;
   }
 
   removeIFrame(iFrameControllerIdentifier: iFrameControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean {
@@ -201,22 +224,41 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
 
     if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
 
-    const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
-    if (extensionHostController === undefined) return false;
+    const extensionHostController = this.getExtensionHostController(endpoint.extensionHostControllerIdentifier);
+    if (extensionHostController === null) return false;
 
-    const iFrameController = extensionHostController.getIFrameController(iFrameControllerIdentifier);
+    const iFrameController = this.getIFrameController(iFrameControllerIdentifier);
     if (iFrameController === null) return false;
 
     const [space, zone] = iFrameController.spaceZoneLocation;
-    const spaceController = this.#spaceControllers.get(space);
-    if (spaceController === undefined) return false;
+    const spaceController = this.getSpaceController(space);
+    if (spaceController === null) return false;
 
-    const iFrameLocation: iFrameLocation = [extensionHostController.identifier, iFrameController.identifier];
 
-    const isIFrameLocationRemoved = spaceController.removeIFrameLocation(zone, iFrameLocation);
-    if (!isIFrameLocationRemoved) return false;
 
-    return extensionHostController.removeIFrame(iFrameController.identifier);
+    let wasIFrameControllerIdentifierRemoved = spaceController.removeIFrameControllerIdentifier(zone, iFrameController.identifier);
+    if (!wasIFrameControllerIdentifierRemoved) return false;
+
+    wasIFrameControllerIdentifierRemoved = extensionHostController.removeIFrameControllerIdentifier(iFrameController.identifier);
+    if (!wasIFrameControllerIdentifierRemoved) return false;
+
+
+    iFrameController.removeListeners();
+
+    const iFrame = iFrameController.iFrame;
+
+    //If the iFrame has a parent (that means it is connected to the DOM)
+    //we remove it
+    if (iFrame.parentNode !== null)
+      iFrame.parentNode.removeChild(iFrame);
+
+    //Get the URL we assigned to our iFrame as its src
+    const uiURL = iFrame.src;
+    //Remove the URL as it is not needed anymore
+    URL.revokeObjectURL(uiURL);
+
+    //At the end we remove our iFrameController from our iFrameControllers Map
+    return this.#iFrameControllers.delete(iFrameControllerIdentifier);
   }
 
   removeIFrames(endpointRightIdentifier?: endpointRightIdentifier): boolean {
@@ -225,60 +267,75 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
 
     if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
 
-    const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
-    if (extensionHostController === undefined) return false;
+    const extensionHostController = this.getExtensionHostController(endpoint.extensionHostControllerIdentifier);
+    if (extensionHostController === null) return false;
     return this.#removeIFrames(extensionHostController);
   }
 
   #removeIFrames(extensionHostController: ExtensionHostController): boolean {
-    for (const [_, iFrameController] of extensionHostController.getIFrameControllers()) {
+    for (const [_, iFrameController] of this.#iFrameControllers) {
 
       const [space, zone] = iFrameController.spaceZoneLocation;
-      const iFrameLocation: iFrameLocation = [extensionHostController.identifier, iFrameController.identifier];
 
-      const spaceController = this.#spaceControllers.get(space);
-      if (spaceController === undefined) return false;
+      const spaceController = this.getSpaceController(space);
+      if (spaceController === null) return false;
 
 
-      const isIFrameLocationRemoved = spaceController.removeIFrameLocation(zone, iFrameLocation);
-      if (!isIFrameLocationRemoved) return false;
+      let wasIFrameLocationRemoved = spaceController.removeIFrameControllerIdentifier(zone, iFrameController.identifier);
+      if (!wasIFrameLocationRemoved) return false;
 
-      extensionHostController.removeIFrame(iFrameController.identifier);
+      wasIFrameLocationRemoved = extensionHostController.removeIFrameControllerIdentifier(iFrameController.identifier);
+      if (!wasIFrameLocationRemoved) return false;
+
+      iFrameController.removeListeners();
+
+      const iFrame = iFrameController.iFrame;
+
+      //If the iFrame has a parent (that means it is connected to the DOM)
+      //we remove it
+      if (iFrame.parentNode !== null)
+        iFrame.parentNode.removeChild(iFrame);
+
+      //Get the URL we assigned to our iFrame as its src
+      const uiURL = iFrame.src;
+      //Remove the URL as it is not needed anymore
+      URL.revokeObjectURL(uiURL);
+
     }
     //Big wipe
-    extensionHostController.iFrameControllers.clear();
+    this.#iFrameControllers.clear();
     return true;
   }
 
 
-  addEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): eventListenerControllerIdentifier | null {
+  registerListener(iFrameControllerIdentifier: iFrameControllerIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): eventListenerControllerIdentifier | null {
     if (endpointRightIdentifier === undefined) return null;
 
     const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
 
     if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return null;
 
-    const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
-    if (extensionHostController === undefined) return null;
+    const extensionHostController = this.getExtensionHostController(endpoint.extensionHostControllerIdentifier);
+    if (extensionHostController === null) return null;
 
-    const iFrameController = extensionHostController.iFrameControllers.get(iFrameControllerIdentifier);
-    if (iFrameController === undefined) return null;
+    const iFrameController = this.getIFrameController(iFrameControllerIdentifier);
+    if (iFrameController === null) return null;
 
     return iFrameController.registerListener(listener);
   }
 
-  removeEventListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventListenerControllerIdentifier: eventListenerControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean {
+  removeListener(iFrameControllerIdentifier: iFrameControllerIdentifier, eventListenerControllerIdentifier: eventListenerControllerIdentifier, endpointRightIdentifier?: endpointRightIdentifier): boolean {
     if (endpointRightIdentifier === undefined) return false;
 
     const endpoint = this.#extensionServiceEndpoints.get(endpointRightIdentifier);
 
     if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
 
-    const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
-    if (extensionHostController === undefined) return false;
+    const extensionHostController = this.getExtensionHostController(endpoint.extensionHostControllerIdentifier);
+    if (extensionHostController === null) return false;
 
-    const iFrameController = extensionHostController.iFrameControllers.get(iFrameControllerIdentifier);
-    if (iFrameController === undefined || !iFrameController.eventListenerControllers.has(eventListenerControllerIdentifier)) return false;
+    const iFrameController = this.getIFrameController(iFrameControllerIdentifier);
+    if (iFrameController === null || !iFrameController.eventListenerControllers.has(eventListenerControllerIdentifier)) return false;
 
     return iFrameController.removeListener(eventListenerControllerIdentifier);
   }
@@ -290,11 +347,11 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
 
     if (endpoint === undefined || endpoint.extensionHostControllerIdentifier === undefined) return false;
 
-    const extensionHostController = this.#extensionHostControllers.get(endpoint.extensionHostControllerIdentifier);
-    if (extensionHostController === undefined) return false;
+    const extensionHostController = this.getExtensionHostController(endpoint.extensionHostControllerIdentifier);
+    if (extensionHostController === null) return false;
 
-    const iFrameController = extensionHostController.iFrameControllers.get(iFrameControllerIdentifier);
-    if (iFrameController === undefined) return false;
+    const iFrameController = this.getIFrameController(iFrameControllerIdentifier);
+    if (iFrameController === null) return false;
 
     return iFrameController.postMessage(message);
   }
@@ -336,10 +393,29 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
 
     const [spaceIdentifier, zoneIdentifier] = spaceZoneLocation;
 
-    const spaceController = this.#spaceControllers.get(spaceIdentifier);
-    if (spaceController === undefined) return false;
+    const spaceController = this.getSpaceController(spaceIdentifier);
+    if (spaceController === null) return false;
 
     return spaceController.hasZone(zoneIdentifier);
+  }
+
+  getIFrameController(iFrameControllerIdentifier: iFrameControllerIdentifier): IFrameController | null {
+    const iFrameController = this.#iFrameControllers.get(iFrameControllerIdentifier);
+    if (iFrameController === undefined) return null;
+    return iFrameController;
+  }
+
+  getExtensionHostController(extensionHostControllerIdentifier: extensionHostControllerIdentifier): ExtensionHostController | null {
+    const extensionHostController = this.#extensionHostControllers.get(extensionHostControllerIdentifier);
+    if (extensionHostController === undefined) return null;
+    return extensionHostController;
+  }
+
+  getSpaceController(spaceIdentifier: spaceIdentifier): SpaceController | null {
+    const spaceController = this.#spaceControllers.get(spaceIdentifier);
+    if (spaceController === undefined) return null;
+    return spaceController;
+
   }
 
   async loadExtensionHost(): Promise<extensionHostControllerIdentifier> {
@@ -383,8 +459,8 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
 
   unloadExtensionHost(extensionHostControllerIdentifier: extensionHostControllerIdentifier): boolean {
     //Grab the controller from our map
-    const extensionHostController = this.#extensionHostControllers.get(extensionHostControllerIdentifier);
-    if (extensionHostController === undefined || extensionHostController.endpointRightIdentifier === undefined) return false;
+    const extensionHostController = this.getExtensionHostController(extensionHostControllerIdentifier);
+    if (extensionHostController === null || extensionHostController.endpointRightIdentifier === undefined) return false;
 
     //Remove all created IFrames and with it all the event listeners
     this.#removeIFrames(extensionHostController);
@@ -402,15 +478,15 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
   }
 
   async loadExtension(extensionIdentifier: string, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
-    const extensionHostController = this.#extensionHostControllers.get(extensionHostControllerIdentifier);
-    if (extensionHostController === undefined) return false;
+    const extensionHostController = this.getExtensionHostController(extensionHostControllerIdentifier);
+    if (extensionHostController === null) return false;
     return extensionHostController.loadExtension(extensionIdentifier);
 
   }
 
   async unloadExtension(extensionIdentifier: string, extensionHostControllerIdentifier: extensionHostControllerIdentifier): Promise<boolean> {
-    const extensionHostController = this.#extensionHostControllers.get(extensionHostControllerIdentifier);
-    if (extensionHostController === undefined) return false;
+    const extensionHostController = this.getExtensionHostController(extensionHostControllerIdentifier);
+    if (extensionHostController === null) return false;
 
     return extensionHostController.unloadExtension(extensionIdentifier);
   }
@@ -433,9 +509,9 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
   }
 
   registerZone(spaceIdentifier: spaceIdentifier, zoneIdentifier: zoneIdentifier): boolean {
-    const spaceController = this.#spaceControllers.get(spaceIdentifier);
+    const spaceController = this.getSpaceController(spaceIdentifier);
     //If the space does not exist, then return false
-    if (spaceController === undefined) return false;
+    if (spaceController === null) return false;
     return spaceController.registerZone(zoneIdentifier);
   }
 
@@ -443,26 +519,21 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
   //If the space is changed, unloadSpace has to be called
   loadSpace(spaceIdentifier: spaceIdentifier): boolean {
     //Get the right spaceController
-    const spaceController = this.#spaceControllers.get(spaceIdentifier);
+    const spaceController = this.getSpaceController(spaceIdentifier);
     //Check if the spaceController exists and if not return false
-    if (spaceController === undefined) return false;
+    if (spaceController === null) return false;
 
     //Iterate over all the zones of the space
-    for (const [zoneIdentifier, iFrameLocations] of spaceController.zones) {
+    for (const [zoneIdentifier, iFrameControllerIdentifiers] of spaceController.zones) {
       //Grab the html element that represent the zone based on the zoneIdentifier
       //The developers have to make sure that the zone really exists
       const zone = document.getElementById(zoneIdentifier);
       //If it does not exist continue with the next zone
       if (zone === null) continue;
       //Iterate over all the iFrameLocations
-      for (const [_, [extensionHostControllerIdentifier, iFrameControllerIdentifier]] of iFrameLocations) {
-        //Grab the extensionHostController
-        const extensionHostController = this.#extensionHostControllers.get(extensionHostControllerIdentifier);
-        //Check if it exists and if it does not exist, then continue with the next iFrameLocation
-        if (extensionHostController === undefined) continue;
-
+      for (const iFrameControllerIdentifier of iFrameControllerIdentifiers) {
         //Grab the iFrameController
-        const iFrameController = extensionHostController.getIFrameController(iFrameControllerIdentifier);
+        const iFrameController = this.getIFrameController(iFrameControllerIdentifier);
         //Check if it exists and if it does not exist, then continue with the next iFrameLocation
         if (iFrameController === null) continue;
 
@@ -488,26 +559,21 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
   //was loaded with loadSpace and is now being changed to another space
   unloadSpace(spaceIdentifier: spaceIdentifier): boolean {
     //Get the right spaceController
-    const spaceController = this.#spaceControllers.get(spaceIdentifier);
+    const spaceController = this.getSpaceController(spaceIdentifier);
     //Check if the spaceController exists and if not return false
-    if (spaceController === undefined) return false;
+    if (spaceController === null) return false;
 
     //Iterate over all the zones of the space
-    for (const [zoneIdentifier, iFrameLocations] of spaceController.zones) {
+    for (const [zoneIdentifier, iFrameControllerIdentifiers] of spaceController.zones) {
       //Grab the html element that represent the zone based on the zoneIdentifier
       //The developers have to make sure that the zone really exists
       const zone = document.getElementById(zoneIdentifier);
       //If it does not exist continue with the next zone
       if (zone === null) continue;
       //Iterate over all the iFrameLocations
-      for (const [_, [extensionHostControllerIdentifier, iFrameControllerIdentifier]] of iFrameLocations) {
-        //Grab the extensionHostController
-        const extensionHostController = this.#extensionHostControllers.get(extensionHostControllerIdentifier);
-        //Check if it exists and if it does not exist, then continue with the next iFrameLocation
-        if (extensionHostController === undefined) continue;
-
+      for (const iFrameControllerIdentifier of iFrameControllerIdentifiers) {
         //Grab the iFrameController
-        const iFrameController = extensionHostController.getIFrameController(iFrameControllerIdentifier);
+        const iFrameController = this.getIFrameController(iFrameControllerIdentifier);
         //Check if it exists and if it does not exist, then continue with the next iFrameLocation
         if (iFrameController === null) continue;
 
@@ -533,26 +599,21 @@ export class ExtensionService implements NSExtensionService.IEndpointLeft, NSExt
   //if that iFrame should be rendered but still has a parent
   updateSpace(spaceIdentifier: spaceIdentifier): boolean {
     //Get the right spaceController
-    const spaceController = this.#spaceControllers.get(spaceIdentifier);
+    const spaceController = this.getSpaceController(spaceIdentifier);
     //Check if the spaceController exists and if not return false
-    if (spaceController === undefined) return false;
+    if (spaceController === null) return false;
 
     //Iterate over all the zones of the space
-    for (const [zoneIdentifier, iFrameLocations] of spaceController.zones) {
+    for (const [zoneIdentifier, iFrameControllerIdentifiers] of spaceController.zones) {
       //Grab the html element that represent the zone based on the zoneIdentifier
       //The developers have to make sure that the zone really exists
       const zone = document.getElementById(zoneIdentifier);
       //If it does not exist continue with the next zone
       if (zone === null) continue;
       //Iterate over all the iFrameLocations
-      for (const [_, [extensionHostControllerIdentifier, iFrameControllerIdentifier]] of iFrameLocations) {
-        //Grab the extensionHostController
-        const extensionHostController = this.#extensionHostControllers.get(extensionHostControllerIdentifier);
-        //Check if it exists and if it does not exist, then continue with the next iFrameLocation
-        if (extensionHostController === undefined) continue;
-
+      for (const iFrameControllerIdentifier of iFrameControllerIdentifiers) {
         //Grab the iFrameController
-        const iFrameController = extensionHostController.getIFrameController(iFrameControllerIdentifier);
+        const iFrameController = this.getIFrameController(iFrameControllerIdentifier);
         //Check if it exists and if it does not exist, then continue with the next iFrameLocation
         if (iFrameController === null) continue;
 

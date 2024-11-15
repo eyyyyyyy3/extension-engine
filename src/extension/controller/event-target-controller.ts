@@ -2,7 +2,7 @@ import * as Comlink from "comlink";
 import { eventIdentifier, eventListenerControllerIdentifier } from "../types";
 import { EventListenerController } from "./event-listener-controller";
 
-class EventTargetController extends EventTarget {
+export class EventTargetController extends EventTarget {
   events: Map<eventIdentifier, Set<eventListenerControllerIdentifier>>;
   eventListenerControllers: Map<eventListenerControllerIdentifier, EventListenerController>;
   constructor() {
@@ -46,6 +46,8 @@ class EventTargetController extends EventTarget {
     return this.events.has(event);
   }
 
+  //Rework this. Currently we dont save wo registered the listener.
+  //The registration should actually be inside of the ExtensionWorkerController
   registerListener(event: eventIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked): eventListenerControllerIdentifier {
     const abortController = new AbortController();
 
@@ -72,7 +74,15 @@ class EventTargetController extends EventTarget {
     return this.eventListenerControllers.delete(eventListenerControllerIdentifier);
   }
 
-  hasListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier) {
+  removeListeners(): void {
+    for (const [_, eventListenerController] of this.eventListenerControllers) {
+      eventListenerController.abort();
+    }
+    this.eventListenerControllers.clear();
+    return;
+  }
+
+  hasListener(eventListenerControllerIdentifier: eventListenerControllerIdentifier): boolean {
     return this.eventListenerControllers.has(eventListenerControllerIdentifier);
   }
 
@@ -81,4 +91,5 @@ class EventTargetController extends EventTarget {
     if (eventListenerController === undefined) return null;
     return eventListenerController;
   }
+  /////////////////////////////////////////////////////////////////////////////////////////////
 }
