@@ -430,6 +430,7 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
   }
 
   async registerUI(uiIdentifier: uiIdentifier, space: spaceIdentifier, zone: zoneIdentifier, listener: ((data: any) => any) & Comlink.ProxyMarked, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
+    //TODO: Figure this out later. I need to check weather the ui already exists and it has to be extensionWorkerController specific
     const extensionWorkerController = this.getExtensionWorkerControllerOverEndpointIdentifier(endpointRightIdentifier);
     if (extensionWorkerController === null) return false;
 
@@ -481,6 +482,10 @@ class ExtensionHost implements NSExtensionHost.IEndpointLeft, NSExtensionHost.IE
   }
 
   async removeUI(uiIdentifier: uiIdentifier, endpointRightIdentifier?: endpointRightIdentifier): Promise<boolean> {
+    //TODO: Fix this code as it does not check if the uiController belongs to the ExtensionWorker.
+    //Actually we have to check from the UIControllers side as there may be n-many uiIdentifiers with the same name.
+    //Actually Actually registering an ui has to return some kind of identifier which is unique as doing it otherwise
+    //would lead to having only one instance of a ui with that name which we want to prevent
     const extensionWorkerController = this.getExtensionWorkerControllerOverEndpointIdentifier(endpointRightIdentifier);
     if (extensionWorkerController === null) return false;
 
